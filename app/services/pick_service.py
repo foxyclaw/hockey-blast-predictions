@@ -81,11 +81,18 @@ def _get_game_teams(game_id: int) -> tuple[int, int, datetime | None]:
         if game is None:
             raise GameNotFoundError()
 
-        scheduled = game.game_date_time
-        if scheduled is not None and scheduled.tzinfo is None:
-            scheduled = scheduled.replace(tzinfo=timezone.utc)
+        # Combine separate date + time columns
+        game_date = getattr(game, "date", None)
+        game_time = getattr(game, "time", None)
+        if game_date is not None:
+            if game_time is not None:
+                scheduled = datetime.combine(game_date, game_time)
+            else:
+                scheduled = datetime(game_date.year, game_date.month, game_date.day)
+        else:
+            scheduled = None
 
-        return game.home_team_id, game.away_team_id, scheduled
+        return game.home_team_id, game.visitor_team_id, scheduled
 
     except ImportError:
         # No hockey_blast_common_lib — tests use mocked values
@@ -140,9 +147,9 @@ def submit_pick(
     skill_fields = compute_pick_skill_fields(
         picked_team_id=picked_team_id,
         home_team_id=home_team_id,
-        away_team_id=away_team_id,
+        visitor_team_id=away_team_id,
         home_skill=snapshot["home_team_avg_skill"],
-        away_skill=snapshot["away_team_avg_skill"],
+        visitor_skill=snapshot["away_team_avg_skill"],
     )
 
     # Step 5: Upsert
