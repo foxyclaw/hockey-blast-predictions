@@ -110,43 +110,79 @@ def confirm_identity():
     """
     POST /api/identity/confirm
 
-    Body: { "hb_human_id": 12345 }
-       or { "skip": true }
+    Body: { "hb_human_id": 12345 }           — claim one identity
+       or { "hb_human_id": [123, 456] }       — claim multiple at once
+       or { "skip": true }                     — decline to link for now
 
-    - skip: true → sets hb_human_id = -1 (declined to link)
-    - hb_human_id: int → verifies the human exists, then links
+    All claims are appended to pred_user_hb_claims (never overwritten).
+    The first claim (or only claim) also sets pred_users.hb_human_id as primary.
+    Two users can claim the same hb_human_id — conflicts resolved by nightly job.
 
-    Returns: { "linked": bool, "hb_human_id": int }
+    Returns: { "linked": bool, "claims": [ {hb_human_id, is_primary} ] }
     """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from app.models.pred_user_hb_claim import PredUserHbClaim
+
     user = g.pred_user
     data = request.get_json(force=True, silent=True) or {}
-
     pred_session = PredSession()
 
     if data.get("skip"):
-        # Sentinel value -1 = "user declined to link"
-        user.hb_human_id = -1
-        pred_session.commit()
-        return jsonify({"linked": False, "hb_human_id": -1})
+        return jsonify({"linked": False, "claims": []})
 
-    hb_human_id = data.get("hb_human_id")
-    if hb_human_id is None:
+    # Accept single int or list of ints
+    raw = data.get("hb_human_id")
+    if raw is None:
         return error_response("VALIDATION_ERROR", "Must provide 'hb_human_id' or 'skip: true'", 400)
+    ids_to_claim = raw if isinstance(raw, list) else [raw]
 
-    if not isinstance(hb_human_id, int) or hb_human_id <= 0:
-        return error_response("VALIDATION_ERROR", "hb_human_id must be a positive integer", 400)
+    if not all(isinstance(i, int) and i > 0 for i in ids_to_claim):
+        return error_response("VALIDATION_ERROR", "hb_human_id must be positive integer(s)", 400)
 
-    # Verify the human exists in hockey_blast DB
+    # Verify all humans exist in hockey_blast
     try:
         Human, _, _, _ = _get_hb_models()
         hb_session = HBSession()
-        human = hb_session.get(Human, hb_human_id)
-        if human is None:
-            return error_response("NOT_FOUND", f"No human found with id={hb_human_id}", 404)
+        for hid in ids_to_claim:
+            if hb_session.get(Human, hid) is None:
+                return error_response("NOT_FOUND", f"No human found with id={hid}", 404)
     except RuntimeError as exc:
         return error_response("SERVICE_UNAVAILABLE", str(exc), 503)
 
-    user.hb_human_id = hb_human_id
+    # Fetch existing claims to determine is_primary
+    existing = pred_session.execute(
+        select(PredUserHbClaim).where(PredUserHbClaim.user_id == user.id)
+    ).scalars().all()
+    existing_ids = {c.hb_human_id for c in existing}
+    has_primary = any(c.is_primary for c in existing)
+
+    new_claims = []
+    for idx, hid in enumerate(ids_to_claim):
+        if hid in existing_ids:
+            continue  # already claimed, skip (upsert would also work)
+        is_primary = not has_primary and idx == 0
+        claim = PredUserHbClaim(
+            user_id=user.id,
+            hb_human_id=hid,
+            source="self_reported",
+            is_primary=is_primary,
+        )
+        pred_session.add(claim)
+        new_claims.append({"hb_human_id": hid, "is_primary": is_primary})
+        if is_primary:
+            has_primary = True
+
+    # Keep pred_users.hb_human_id as the primary for quick lookups
+    if new_claims and any(c["is_primary"] for c in new_claims):
+        user.hb_human_id = new_claims[0]["hb_human_id"]
+
     pred_session.commit()
 
-    return jsonify({"linked": True, "hb_human_id": hb_human_id})
+    all_claims = [
+        {"hb_human_id": c.hb_human_id, "is_primary": c.is_primary}
+        for c in pred_session.execute(
+            select(PredUserHbClaim).where(PredUserHbClaim.user_id == user.id)
+        ).scalars().all()
+    ]
+
+    return jsonify({"linked": True, "claims": all_claims})

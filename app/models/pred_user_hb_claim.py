@@ -1,0 +1,46 @@
+"""
+PredUserHbClaim — stores every hb_human_id a user has ever claimed as themselves.
+
+Multiple rows allowed per user (different records across seasons/facilities).
+Merging/deduplication is a nightly-job concern in hockey_blast, not here.
+Two users can claim the same hb_human_id — we store both, flag for review later.
+"""
+
+from datetime import datetime, timezone
+
+from sqlalchemy import DateTime, Integer, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db import PredBase as Base
+
+
+class PredUserHbClaim(Base):
+    __tablename__ = "pred_user_hb_claims"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    hb_human_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    source: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="self_reported"
+    )  # 'self_reported' | 'email_match' | 'admin'
+    is_primary: Mapped[bool] = mapped_column(default=False)
+    claimed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Prevent exact duplicate claims (same user + same hb_human_id)
+    __table_args__ = (
+        UniqueConstraint("user_id", "hb_human_id", name="uq_user_hb_claim"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "hb_human_id": self.hb_human_id,
+            "source": self.source,
+            "is_primary": self.is_primary,
+            "claimed_at": self.claimed_at.isoformat() if self.claimed_at else None,
+        }
