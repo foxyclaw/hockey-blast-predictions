@@ -27,7 +27,10 @@ def create_app(config_name: str | None = None) -> Flask:
         config_name: "development" | "testing" | "production" | None
                      Defaults to FLASK_ENV environment variable, then "development".
     """
-    app = Flask(__name__)
+    # SPA dist folder (served manually via catch-all route below)
+    _dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+    app = Flask(__name__, static_folder=None)
+    app.config["SPA_DIST"] = os.path.abspath(_dist)
 
     # ── Load config ────────────────────────────────────────────────────────────
     if config_name is None:
@@ -97,9 +100,28 @@ def create_app(config_name: str | None = None) -> Flask:
         )
 
     # ── Error handlers ─────────────────────────────────────────────────────────
+    # ── SPA catch-all — serve index.html for all non-API routes ──────────────
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def spa(path):
+        """Serve Vue SPA. API routes are matched before this catch-all."""
+        from flask import send_from_directory
+        import os as _os
+        dist = app.config["SPA_DIST"]
+        # Serve file directly if it exists (assets/, puck.svg, etc.)
+        full = _os.path.join(dist, path)
+        if path and _os.path.isfile(full):
+            return send_from_directory(dist, path)
+        return send_from_directory(dist, "index.html")
+
     @app.errorhandler(404)
     def not_found(e):
-        return jsonify({"error": "NOT_FOUND", "message": "Resource not found"}), 404
+        # Only return JSON 404 for API routes; everything else falls to SPA
+        from flask import request as _req, send_from_directory
+        if _req.path.startswith("/api/") or _req.path.startswith("/auth/"):
+            return jsonify({"error": "NOT_FOUND", "message": "Resource not found"}), 404
+        dist = app.config["SPA_DIST"]
+        return send_from_directory(dist, "index.html")
 
     @app.errorhandler(405)
     def method_not_allowed(e):

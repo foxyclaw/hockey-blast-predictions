@@ -28,6 +28,12 @@ const router = createRouter({
       beforeEnter: authGuard,
     },
     {
+      path: '/profile-setup',
+      name: 'profile-setup',
+      component: () => import('@/views/ProfileSetupView.vue'),
+      beforeEnter: authGuard,
+    },
+    {
       path: '/identity',
       name: 'identity',
       component: () => import('@/views/IdentityView.vue'),

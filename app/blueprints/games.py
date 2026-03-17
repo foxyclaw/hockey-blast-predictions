@@ -38,6 +38,7 @@ def _serialize_game(game, hb_session, pred_user=None, pred_session=None) -> dict
     org_id = getattr(game, "org_id", None)
     home_skill = get_team_avg_skill(game.home_team_id, org_id) if org_id else None
     visitor_skill = get_team_avg_skill(game.visitor_team_id, org_id) if org_id else None
+    division = _get_division(getattr(game, "division_id", None), hb_session)
 
     is_pickable, lock_reason = is_game_pickable(game.id)
     lock_deadline = get_lock_deadline(game.id)
@@ -53,6 +54,8 @@ def _serialize_game(game, hb_session, pred_user=None, pred_session=None) -> dict
         "lock_reason": lock_reason if not is_pickable else None,
         "is_live": is_live,
         "org_id": org_id,
+        "org": _get_org(org_id, hb_session),
+        "division": division,
         "home_team": {
             "id": game.home_team_id,
             "name": home_team.name if home_team else str(game.home_team_id),
@@ -85,6 +88,34 @@ def _get_team(team_id: int, hb_session):
         return hb_session.execute(stmt).scalar_one_or_none()
     except Exception:
         return None
+
+
+def _get_division(division_id: int | None, hb_session) -> dict | None:
+    if not division_id:
+        return None
+    try:
+        from hockey_blast_common_lib.models import Division
+        stmt = select(Division).where(Division.id == division_id)
+        div = hb_session.execute(stmt).scalar_one_or_none()
+        if div:
+            return {"id": div.id, "name": div.name}
+    except Exception:
+        pass
+    return None
+
+
+def _get_org(org_id: int | None, hb_session) -> dict | None:
+    if not org_id:
+        return None
+    try:
+        from hockey_blast_common_lib.models import Organization
+        stmt = select(Organization).where(Organization.id == org_id)
+        org = hb_session.execute(stmt).scalar_one_or_none()
+        if org:
+            return {"id": org.id, "name": org.organization_name}
+    except Exception:
+        pass
+    return None
 
 
 @games_bp.route("", methods=["GET"])

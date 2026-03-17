@@ -8,10 +8,7 @@
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div>
           <div class="text-xs text-base-content/50 uppercase tracking-wider">
-            {{ game.org?.name ?? 'Unknown Org' }}
-          </div>
-          <div class="text-xs text-base-content/40">
-            {{ game.division?.name ?? '' }}
+            {{ game.org?.name ?? 'Unknown Org' }}<span v-if="game.division?.name" class="text-base-content/30 normal-case"> · {{ game.division.name }}</span>
           </div>
         </div>
         <div class="flex items-center gap-2">
@@ -37,8 +34,8 @@
 
         <!-- Away team -->
         <div class="text-center">
-          <a :href="'https://hockey-blast.com/team_stats?team_id=' + game.away_team?.id" target="_blank" class="link link-primary font-bold text-sm leading-tight mb-2" @click.stop>{{ game.away_team?.name ?? 'Away' }}</a>
-          <SkillBar :skill="game.away_team?.avg_skill" />
+          <a :href="'https://hockey-blast.com/team_stats?team_id=' + game.visitor_team?.id" target="_blank" class="link link-primary font-bold text-sm leading-tight mb-2" @click.stop>{{ game.visitor_team?.name ?? 'Away' }}</a>
+          <SkillBar :skill="game.visitor_team?.avg_skill" />
         </div>
       </div>
 
@@ -84,7 +81,7 @@ const pickedTeamName = computed(() => {
   if (!props.game.user_pick) return ''
   const pick = props.game.user_pick
   if (pick.picked_team_id === props.game.home_team?.id) return props.game.home_team?.name
-  return props.game.away_team?.name
+  return props.game.visitor_team?.name
 })
 
 function formatTime(iso) {

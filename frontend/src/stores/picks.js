@@ -13,7 +13,7 @@ export const usePicksStore = defineStore('picks', () => {
     loading.value = true
     error.value = null
     try {
-      const { data } = await api.get('/api/picks', { params })
+      const { data } = await api.get('/api/picks/mine', { params })
       picks.value = data.picks ?? data
       total.value = data.total ?? picks.value.length
     } catch (e) {

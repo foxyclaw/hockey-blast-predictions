@@ -97,6 +97,27 @@ def logout():
     return redirect(logout_url)
 
 
+@auth_bp.route("/me", methods=["PATCH"])
+@require_auth
+def update_me():
+    """PATCH /auth/me — update mutable profile fields (display_name for now)."""
+    from app.db import PredSession
+    user = g.pred_user
+    data = request.get_json(force=True, silent=True) or {}
+
+    display_name = (data.get("display_name") or "").strip()
+    if not display_name:
+        return jsonify({"error": "VALIDATION_ERROR", "message": "display_name is required"}), 400
+    if len(display_name) > 64:
+        return jsonify({"error": "VALIDATION_ERROR", "message": "display_name too long"}), 400
+
+    pred_session = PredSession()
+    user.display_name = display_name
+    pred_session.commit()
+
+    return jsonify({"display_name": user.display_name})
+
+
 @auth_bp.route("/me")
 @require_auth
 def me():

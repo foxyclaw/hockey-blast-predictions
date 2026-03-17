@@ -63,7 +63,8 @@ def validate_token(token: str) -> dict[str, Any]:
     public_key = _get_public_key(kid)
 
     domain = current_app.config["AUTH0_DOMAIN"]
-    audience = current_app.config["AUTH0_AUDIENCE"]
+    # ID token audience is always the Auth0 client ID
+    audience = current_app.config["AUTH0_CLIENT_ID"]
 
     payload = jwt.decode(
         token,

@@ -1,10 +1,16 @@
 <template>
   <div class="container mx-auto px-4 py-6 max-w-2xl">
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-primary">🏒 Find Yourself</h1>
-      <p class="text-base-content/60 mt-1 text-sm">
-        Link your account to your hockey history for personalized stats and captain tools.
+      <h1 class="text-2xl font-bold text-primary">🏒 Link Your Hockey Profile</h1>
+      <p class="text-base-content/60 mt-1 text-sm leading-relaxed">
+        If you've ever played in any of the leagues below, linking your account unlocks
+        personalized stats, predictions history, and captain tools — including finding open
+        ice times, connecting with teams looking for skaters or goalies, and managing
+        your roster as a captain.
       </p>
+      <div v-if="orgs.length" class="flex flex-wrap gap-1 mt-3">
+        <span v-for="org in orgs" :key="org" class="badge badge-outline badge-sm text-xs">{{ org }}</span>
+      </div>
     </div>
 
     <!-- Existing claims -->
@@ -21,7 +27,7 @@
             <div class="font-medium">{{ claim.profile?.first_name }} {{ claim.profile?.last_name }}</div>
             <div class="text-xs text-base-content/50">
               {{ claim.profile?.orgs?.join(', ') }} ·
-              {{ claim.profile?.first_date }} – {{ claim.profile?.last_date }}
+              {{ fmtDate(claim.profile?.first_date) }} – {{ fmtDate(claim.profile?.last_date) }}
             </div>
           </div>
           <div v-if="claim.is_primary" class="badge badge-primary badge-sm ml-auto">Primary</div>
@@ -30,63 +36,64 @@
       <button class="btn btn-ghost btn-sm mt-2" @click="showSearch = true">+ Add another profile</button>
     </div>
 
-    <!-- Search form -->
-    <div v-if="!existingClaims.length || showSearch" class="card bg-base-200 shadow-lg p-6 mb-6">
-      <h2 class="font-semibold mb-3">Search the hockey database</h2>
-      <div class="flex gap-2">
-        <input
-          v-model="searchName"
-          type="text"
-          placeholder="Your name (e.g. Pavel Kletskov)"
-          class="input input-bordered flex-1"
-          @keyup.enter="search"
-        />
-        <button class="btn btn-primary" :class="{ loading: searching }" @click="search">
-          Search
-        </button>
-      </div>
+    <!-- Loading -->
+    <div v-if="searching" class="flex justify-center py-12">
+      <span class="loading loading-spinner loading-lg text-primary"></span>
     </div>
 
     <!-- Candidates -->
-    <div v-if="candidates.length" class="space-y-4 mb-6">
-      <h2 class="text-sm font-semibold text-base-content/70 uppercase">
-        {{ candidates.length }} match{{ candidates.length !== 1 ? 'es' : '' }} found
-      </h2>
+    <div v-else-if="(!existingClaims.length || showSearch) && candidates.length" class="space-y-4 mb-6">
+      <div class="flex items-baseline gap-3">
+        <h2 class="text-sm font-semibold text-base-content/70 uppercase">
+          {{ candidates.length }} match{{ candidates.length !== 1 ? 'es' : '' }} found for {{ userFirst }} {{ userLast }}
+        </h2>
+        <span class="text-xs text-base-content/40">Tap a card to select / deselect</span>
+      </div>
 
       <div
         v-for="c in candidates"
         :key="c.hb_human_id"
-        class="card bg-base-200 shadow border-2 transition-all cursor-pointer"
-        :class="selected.includes(c.hb_human_id) ? 'border-primary' : 'border-transparent'"
+        class="card bg-base-200 shadow border-2 transition-all cursor-pointer relative"
+        :class="selected.includes(c.hb_human_id) ? 'border-primary bg-primary/10' : 'border-transparent'"
         @click="toggleSelect(c.hb_human_id)"
       >
-        <div class="card-body p-4">
-          <div class="flex items-start justify-between gap-2">
-            <div>
+        <!-- Checkmark -->
+        <div class="absolute top-3 right-3">
+          <div
+            class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all"
+            :class="selected.includes(c.hb_human_id) ? 'bg-primary border-primary text-white' : 'border-base-content/30'"
+          >
+            <span v-if="selected.includes(c.hb_human_id)" class="text-xs font-bold">✓</span>
+          </div>
+        </div>
+
+        <div class="card-body p-4 pr-12">
+          <div class="flex items-start gap-2">
+            <div class="flex-1">
               <div class="font-bold text-lg">{{ c.first_name }} {{ c.last_name }}</div>
               <div class="text-xs text-base-content/50 mt-0.5">
                 {{ c.orgs?.join(', ') || 'Unknown org' }}
               </div>
             </div>
-            <!-- Skill badge -->
-            <div class="flex flex-col items-end gap-1">
+            <div class="flex flex-col items-end gap-1 mr-6">
               <div
                 v-if="c.skill_value != null"
                 class="badge badge-sm"
                 :class="skillBadgeClass(c.skill_value)"
+                title="Skill level based on game history"
               >
-                {{ skillLabel(c.skill_value) }}
+                Skill: {{ skillLabel(c.skill_value) }}
               </div>
-              <div v-if="selected.includes(c.hb_human_id)" class="badge badge-primary badge-sm">✓ Selected</div>
+              <div v-if="c.name_match === 'synonym'" class="badge badge-ghost badge-sm text-xs opacity-60">
+                name variant
+              </div>
             </div>
           </div>
 
-          <!-- Career dates -->
           <div class="text-xs text-base-content/60 mt-2">
-            🗓 Played {{ c.first_date }} – {{ c.last_date }}
+            🗓 Played {{ fmtDate(c.first_date) }} – {{ fmtDate(c.last_date) }}
           </div>
 
-          <!-- Teams (most recent 5) -->
           <div v-if="c.teams?.length" class="mt-2">
             <div class="text-xs text-base-content/50 mb-1">Recent teams:</div>
             <div class="flex flex-wrap gap-1">
@@ -96,7 +103,7 @@
                 class="badge badge-ghost badge-sm"
               >
                 {{ t.team_name }}
-                <span v-if="t.role_type === 'C'" class="text-yellow-400 ml-0.5">©</span>
+                <span v-if="t.is_captain" class="text-yellow-400 ml-0.5">©</span>
               </span>
               <span v-if="c.teams.length > 5" class="badge badge-ghost badge-sm opacity-50">
                 +{{ c.teams.length - 5 }} more
@@ -104,7 +111,6 @@
             </div>
           </div>
 
-          <!-- Aliases -->
           <div v-if="c.aliases?.length" class="text-xs text-base-content/40 mt-1">
             Also known as: {{ c.aliases.map(a => `${a.first_name} ${a.last_name}`).join(', ') }}
           </div>
@@ -112,14 +118,15 @@
       </div>
     </div>
 
-    <!-- No results -->
-    <div v-else-if="searched && !searching" class="text-center py-8 text-base-content/50">
-      <p>No matches found for "{{ searchName }}"</p>
-      <p class="text-sm mt-1">Try a shorter name or check spelling</p>
+    <!-- No results — auto-skip prompt -->
+    <div v-else-if="!searching && searched && !candidates.length && (!existingClaims.length || showSearch)"
+         class="text-center py-8 text-base-content/50">
+      <p class="text-lg mb-1">No hockey records found for <b>{{ userFirst }} {{ userLast }}</b></p>
+      <p class="text-sm">You can still use predictions — you just won't have linked stats yet.</p>
     </div>
 
     <!-- Actions -->
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-3 mt-4">
       <button
         v-if="selected.length"
         class="btn btn-primary w-full"
@@ -144,39 +151,63 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth0 } from '@auth0/auth0-vue'
-import { useApiClient } from "@/api/client"
-const api = useApiClient()
+import { useApiClient, publicClient } from "@/api/client"
 
+const api = useApiClient()
 const router = useRouter()
 const { user } = useAuth0()
 
-const searchName = ref(user.value?.name || '')
 const candidates = ref([])
 const selected = ref([])
 const existingClaims = ref([])
+const orgs = ref([])
 const showSearch = ref(false)
 const searching = ref(false)
 const searched = ref(false)
 const confirming = ref(false)
 const confirmed = ref(false)
+const userFirst = ref('')
+const userLast = ref('')
 
 onMounted(async () => {
+  // Load orgs (public, no auth)
   try {
-    const res = await api.get('/identity/my-claims')
+    const res = await publicClient.get('/api/identity/orgs')
+    orgs.value = res.data.orgs || []
+  } catch {}
+
+  // Load existing claims
+  try {
+    const res = await api.get('/api/identity/my-claims')
     existingClaims.value = res.data.claims || []
   } catch {}
+
+  // Auto-search
+  await doSearch()
 })
 
-async function search() {
-  if (!searchName.value.trim()) return
+async function doSearch() {
   searching.value = true
   searched.value = false
   try {
-    const res = await api.get('/identity/candidates', { params: { name: searchName.value } })
+    const res = await api.get('/api/identity/candidates')
     candidates.value = res.data.candidates || []
+    userFirst.value = res.data.user_first || ''
+    userLast.value = res.data.user_last || ''
+
+    // Auto-select exact matches
+    selected.value = candidates.value
+      .filter(c => c.name_match === 'exact')
+      .map(c => c.hb_human_id)
+
     searched.value = true
+
+    // If no matches at all and no existing claims, skip straight to home
+    if (candidates.value.length === 0 && existingClaims.value.length === 0) {
+      setTimeout(() => router.push('/'), 2500)
+    }
   } catch (e) {
-    console.error(e)
+    console.error('[identity] search failed:', e)
   } finally {
     searching.value = false
   }
@@ -192,7 +223,7 @@ async function confirm() {
   if (!selected.value.length) return
   confirming.value = true
   try {
-    await api.post('/identity/confirm', { hb_human_id: selected.value })
+    await api.post('/api/identity/confirm', { hb_human_id: selected.value })
     confirmed.value = true
     setTimeout(() => router.push('/'), 1500)
   } catch (e) {
@@ -203,10 +234,15 @@ async function confirm() {
 }
 
 async function skip() {
-  try {
-    await api.post('/identity/confirm', { skip: true })
-  } catch {}
+  try { await api.post('/api/identity/confirm', { skip: true }) } catch {}
   router.push('/')
+}
+
+// Format ISO date string → MM/DD/YYYY
+function fmtDate(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('T')[0].split('-')
+  return `${m}/${d}/${y}`
 }
 
 function skillLabel(val) {

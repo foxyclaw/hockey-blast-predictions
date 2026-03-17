@@ -60,7 +60,8 @@
           </li>
         </ul>
       </div>
-      <button v-else @click="loginWithRedirect()" class="btn btn-primary btn-sm">
+      <button v-else @click="doLogin()" class="btn btn-primary btn-sm" :disabled="loginInProgress">
+        <span v-if="loginInProgress" class="loading loading-spinner loading-xs"></span>
         Sign In
       </button>
 
@@ -82,12 +83,19 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuth0 } from '@auth0/auth0-vue'
 import { useUserStore } from '@/stores/user'
 
 const { isAuthenticated, isLoading, user, loginWithRedirect, logout } = useAuth0()
 const userStore = useUserStore()
+const router = useRouter()
+const loginInProgress = ref(false)
 
 const balance = computed(() => userStore.balance)
+
+async function doLogin() {
+  await loginWithRedirect()
+}
 </script>
