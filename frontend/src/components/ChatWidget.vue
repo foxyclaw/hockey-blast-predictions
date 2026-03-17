@@ -129,7 +129,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, computed } from 'vue'
+import { ref, nextTick, computed, watch } from 'vue'
 import { useAuth0 } from '@auth0/auth0-vue'
 import { useChatApi } from '@/api/chat'
 import DislikeModal from '@/components/DislikeModal.vue'
@@ -148,6 +148,32 @@ const inputEl = ref(null)
 const dislikeTarget = ref(null)
 
 const sessionId = crypto.randomUUID()
+const historyLoaded = ref(false)
+
+// Load history the first time the chat is opened
+watch(open, async (isOpen) => {
+  if (!isOpen || historyLoaded.value) return
+  historyLoaded.value = true
+  try {
+    const history = await chatApi.getHistory()
+    if (history?.length) {
+      // Map history format to local message format
+      messages.value = history.map(m => ({
+        id: m.id,
+        message_id: m.id,
+        query: m.query,
+        answer: m.answer,
+        tools_used: m.tools_used || [],
+        feedback: null,
+        is_off_topic: m.is_off_topic || false,
+      }))
+      await nextTick()
+      await scrollToBottom()
+    }
+  } catch (e) {
+    console.warn('[Chat] history load failed:', e)
+  }
+})
 
 const hints = [
   "Best game by Pavel Kletskov?",
