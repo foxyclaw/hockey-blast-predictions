@@ -19,6 +19,8 @@
         <div>🪙 token: <b>{{ debugToken || 'null' }}</b></div>
         <div>❌ storeError: <b>{{ userStore.error || 'none' }}</b></div>
         <div>📝 needsNameSetup: <b>{{ userStore.needsNameSetup }}</b> | 🔗 needsIdentitySetup: <b>{{ userStore.needsIdentitySetup }}</b> | 🏒 needsPrefsSetup: <b>{{ userStore.needsPrefsSetup }}</b></div>
+        <div>🧪 lastApiCall: <b>{{ debugLastCall || 'none' }}</b> | status: <b>{{ debugLastStatus || '—' }}</b></div>
+        <div v-if="debugLastError" class="text-red-400">💥 lastError: <b>{{ debugLastError }}</b></div>
       </div>
       <main class="flex-1 container mx-auto px-4 py-6 max-w-3xl">
         <RouterView />
@@ -45,6 +47,29 @@ const { isAuthenticated, isLoading, idTokenClaims } = useAuth0()
 const userStore = useUserStore()
 const router = useRouter()
 const debugToken = ref(null)
+const debugLastCall = ref(null)
+const debugLastStatus = ref(null)
+const debugLastError = ref(null)
+
+// Global axios interceptor to capture last API call for debug panel
+import axios from 'axios'
+axios.interceptors.request.use(config => {
+  debugLastCall.value = `${config.method?.toUpperCase()} ${config.url}`
+  debugLastStatus.value = '⏳ pending'
+  debugLastError.value = null
+  return config
+})
+axios.interceptors.response.use(
+  res => {
+    debugLastStatus.value = `✅ ${res.status}`
+    return res
+  },
+  err => {
+    debugLastStatus.value = `❌ ${err.response?.status || 'ERR'}`
+    debugLastError.value = err.response?.data?.message || err.message
+    return Promise.reject(err)
+  }
+)
 const appReady = ref(false)  // blocks rendering until we know user state
 
 watch(
