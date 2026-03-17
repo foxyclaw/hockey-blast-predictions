@@ -14,14 +14,22 @@
 
     <!-- Chat panel -->
     <Transition name="chat-slide">
-      <div v-if="open" class="chat-panel card bg-base-200 shadow-2xl">
+      <div v-if="open" class="chat-panel card bg-base-200 shadow-2xl" :class="{ maximized: maximized }">
         <!-- Header -->
         <div class="chat-header bg-primary text-primary-content px-4 py-3 rounded-t-2xl flex items-center gap-2">
           <span class="text-lg">🏒</span>
-          <div>
+          <div class="flex-1">
             <div class="font-bold text-sm">Hockey Stats AI</div>
             <div class="text-xs opacity-75">Ask anything about players, teams & games</div>
           </div>
+          <button
+            @click="maximized = !maximized"
+            class="btn btn-ghost btn-xs btn-circle text-primary-content opacity-80 hover:opacity-100"
+            :title="maximized ? 'Minimize' : 'Maximize'"
+          >
+            <span v-if="maximized">⊙</span>
+            <span v-else>⛶</span>
+          </button>
         </div>
 
         <!-- Messages -->
@@ -131,6 +139,7 @@ const isLoggedIn = computed(() => isAuthenticated.value)
 
 const chatApi = useChatApi()
 const open = ref(false)
+const maximized = ref(false)
 const input = ref('')
 const loading = ref(false)
 const messages = ref([])
@@ -232,6 +241,15 @@ async function scrollToBottom() {
   flex-direction: column;
   border-radius: 1rem;
   overflow: hidden;
+  transition: width 0.2s ease, height 0.2s ease, bottom 0.2s ease, right 0.2s ease, border-radius 0.2s ease;
+}
+.chat-panel.maximized {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  width: min(860px, calc(100vw - 48px));
+  height: calc(100vh - 120px);
+  border-radius: 1rem;
 }
 .chat-messages {
   scrollbar-width: thin;
