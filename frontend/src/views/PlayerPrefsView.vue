@@ -187,13 +187,12 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import { useApiClient } from '@/api/client'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const userStore = useUserStore()
-
-const api = axios.create({ withCredentials: true })
+const api = useApiClient()
 
 const loading = ref(true)
 const saving = ref(false)

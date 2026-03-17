@@ -274,7 +274,10 @@ def update_preferences():
                 claim_obj.is_active = False
 
     # ── Mark preferences completed ─────────────────────────────────────────────
-    user.preferences_completed = True
+    from app.models.pred_user import PredUser
+    db_user = pred_session.get(PredUser, user.id)
+    if db_user:
+        db_user.preferences_completed = True
 
     pred_session.commit()
 
