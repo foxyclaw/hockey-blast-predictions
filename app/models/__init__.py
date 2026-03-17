@@ -7,6 +7,8 @@ Import from here:
 
 from app.models.pred_user import PredUser
 from app.models.pred_user_hb_claim import PredUserHbClaim
+from app.models.pred_user_preferences import PredUserPreferences
+from app.models.pred_user_captain_claim import PredUserCaptainClaim
 from app.models.pred_league import PredLeague, LeagueScope
 from app.models.pred_league_member import PredLeagueMember, MemberRole
 from app.models.pred_pick import PredPick
@@ -28,4 +30,6 @@ __all__ = [
     "ChatMessage",
     "ChatFeedback",
     "ChatViolation",
+    "PredUserPreferences",
+    "PredUserCaptainClaim",
 ]

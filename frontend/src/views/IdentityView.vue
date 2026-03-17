@@ -225,7 +225,7 @@ async function confirm() {
   try {
     await api.post('/api/identity/confirm', { hb_human_id: selected.value })
     confirmed.value = true
-    setTimeout(() => router.push('/'), 1500)
+    setTimeout(() => router.push('/player-prefs'), 1500)
   } catch (e) {
     console.error(e)
   } finally {
@@ -235,7 +235,7 @@ async function confirm() {
 
 async function skip() {
   try { await api.post('/api/identity/confirm', { skip: true }) } catch {}
-  router.push('/')
+  router.push('/player-prefs')
 }
 
 // Format ISO date string → MM/DD/YYYY

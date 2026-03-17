@@ -7,7 +7,7 @@
       <div>👤 predUser: <b>{{ userStore.predUser ? userStore.predUser.email : 'null' }}</b> | storeLoading: <b>{{ userStore.loading }}</b></div>
       <div>🪙 token: <b>{{ debugToken || 'null' }}</b></div>
       <div>❌ storeError: <b>{{ userStore.error || 'none' }}</b></div>
-      <div>📝 needsNameSetup: <b>{{ userStore.needsNameSetup }}</b> | 🔗 needsIdentitySetup: <b>{{ userStore.needsIdentitySetup }}</b></div>
+      <div>📝 needsNameSetup: <b>{{ userStore.needsNameSetup }}</b> | 🔗 needsIdentitySetup: <b>{{ userStore.needsIdentitySetup }}</b> | 🏒 needsPrefsSetup: <b>{{ userStore.needsPrefsSetup }}</b></div>
     </div>
     <main class="flex-1 container mx-auto px-4 py-6 max-w-3xl">
       <RouterView />
@@ -60,6 +60,12 @@ watch(
         const current = router.currentRoute.value.name
         if (current !== 'identity' && current !== 'callback') {
           router.push({ name: 'identity' })
+        }
+      // Step 3: identity done but player prefs not set → player prefs
+      } else if (userStore.needsPrefsSetup) {
+        const current = router.currentRoute.value.name
+        if (current !== 'player-prefs' && current !== 'callback' && current !== 'identity') {
+          router.push({ name: 'player-prefs' })
         }
       }
     } else if (!authed && !loading) {

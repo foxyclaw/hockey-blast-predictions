@@ -40,6 +40,12 @@ const router = createRouter({
       beforeEnter: authGuard,
     },
     {
+      path: '/player-prefs',
+      name: 'player-prefs',
+      component: () => import('@/views/PlayerPrefsView.vue'),
+      beforeEnter: authGuard,
+    },
+    {
       path: '/callback',
       name: 'callback',
       component: () => import('@/views/CallbackView.vue'),

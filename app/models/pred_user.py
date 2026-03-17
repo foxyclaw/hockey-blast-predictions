@@ -4,6 +4,7 @@ PredUser — a registered user of the predictions platform, authenticated via Au
 
 from datetime import datetime, timezone
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -43,6 +44,10 @@ class PredUser(PredBase):
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    preferences_completed: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa.false(), nullable=False
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -59,6 +64,12 @@ class PredUser(PredBase):
     picks: Mapped[list["PredPick"]] = relationship(
         "PredPick", back_populates="user", lazy="dynamic"
     )
+    preferences: Mapped["PredUserPreferences | None"] = relationship(
+        "PredUserPreferences", back_populates="user", uselist=False
+    )
+    captain_claims: Mapped[list["PredUserCaptainClaim"]] = relationship(
+        "PredUserCaptainClaim", back_populates="user", lazy="dynamic"
+    )
 
     def __repr__(self) -> str:
         return f"<PredUser id={self.id} name={self.display_name!r}>"
@@ -72,4 +83,5 @@ class PredUser(PredBase):
             "hb_human_id": self.hb_human_id,
             "balance": self.balance,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "preferences_completed": self.preferences_completed,
         }

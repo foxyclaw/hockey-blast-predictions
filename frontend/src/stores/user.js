@@ -22,6 +22,10 @@ export const useUserStore = defineStore('user', () => {
     () => predUser.value !== null && !needsNameSetup.value && predUser.value.hb_human_id === null
   )
 
+  const needsPrefsSetup = computed(
+    () => predUser.value !== null && !needsNameSetup.value && predUser.value.preferences_completed === false
+  )
+
   async function fetchPredUser(idToken = null) {
     if (idToken) _cachedToken = idToken
     loading.value = true
@@ -45,5 +49,5 @@ export const useUserStore = defineStore('user', () => {
     _cachedToken = null
   }
 
-  return { predUser, loading, error, balance, needsIdentitySetup, needsNameSetup, displayName, fetchPredUser, reset }
+  return { predUser, loading, error, balance, needsIdentitySetup, needsNameSetup, needsPrefsSetup, displayName, fetchPredUser, reset }
 })
