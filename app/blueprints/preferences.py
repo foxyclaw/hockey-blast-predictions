@@ -34,13 +34,56 @@ def _skill_from_value(skill_value) -> str | None:
     return "beginner"
 
 
+# Known state groupings for rinks in the HB database.
+# Derived from city/rink knowledge since the DB has no address column populated.
+_LOCATION_STATE: dict[str, str] = {
+    # California — Bay Area
+    "Sharks Ice At San Jose": "CA", "Sharks Ice At Oakland": "CA", "Sharks Ice At Fremont": "CA",
+    "SAP Center at San Jose": "CA", "Bridgepointe Ice Arena": "CA", "Snoopy's Home Ice": "CA",
+    "Livermore Ice Arena": "CA", "San Francisco Ice Arena": "CA", "Yerba Buena Ice Skating Center": "CA",
+    "Skatetown Ice Arena": "CA", "Tri-Valley Ice": "CA", "Vacaville Ice Sports": "CA",
+    "Redwood City Ice Lodge": "CA", "Vallco Ice Arena": "CA",
+    # California — SoCal
+    "Anaheim Ice": "CA", "Toyota Sports Performance Center": "CA", "Citizens Bank Arena": "CA",
+    "Toyota Arena": "CA", "The Rinks - Lake Forest": "CA", "Aliso Viejo Ice Palace": "CA",
+    "Yorba Linda Ice": "CA", "Ontario Center Ice": "CA", "Ontario Ice Skating Center": "CA",
+    "Artesia Ice Rink": "CA", "Paramount Iceland": "CA", "Lakewood Ice": "CA",
+    "Poway Ice": "CA", "Carlsbad Ice Center": "CA", "San Diego Ice Arena": "CA",
+    "Kroc Center Ice Arena": "CA", "Escondido Ice Plex": "CA",
+    "University of California San Diego Ice Arena": "CA", "Westminster Ice Palace": "CA",
+    "Pasadena Ice Skating Center": "CA", "Pickwick Ice": "CA",
+    "Ice Station Valencia": "CA", "Iceoplex Simi Valley": "CA",
+    "Oak Park Ice Arena": "CA", "Bakersfield Ice Sports Center": "CA",
+    "Palm Desert Ice Castle": "CA", "Riverside Ice": "CA",
+    "Mechanics Bank Arena": "CA", "Selland Arena": "CA",
+    "America First Field at Heart of Hacienda Heights": "CA",
+    "Highland Ice Arena": "CA",
+    # California — NorCal other
+    "South Lake Tahoe Ice Arena": "CA", "Mammoth Ice Rink": "CA",
+    "Ice in Paradise": "CA", "Bay Harbor Ice Rink": "CA",
+    # Nevada
+    "Las Vegas Ice Center": "NV", "City National Arena": "NV", "Reno Ice": "NV",
+    "Tahoe Blue Center": "NV",
+    # Oregon
+    "Winterhawks Skating Center": "OR",
+    # Washington
+    "Tacoma Twin Rinks": "WA", "Kent Highland Ice Arena": "WA",
+    "Kent Valley Ice Centre": "WA", "Sprinker Recreation Center": "WA",
+    "Bremerton Ice Center": "WA", "Olympic View Arena": "WA",
+    "Snoqualmie Ice Arena": "WA", "Inline Hockey Club of Kirkland": "WA",
+    "accesso ShoWare Center": "WA",
+    # Other / unknown
+    "Sherwood Ice Arena": "OR",
+}
+
+_STATE_NAMES = {
+    "CA": "California", "NV": "Nevada", "OR": "Oregon", "WA": "Washington",
+    "Other": "Other",
+}
+
+
 def _get_locations():
-    """Return list of canonical locations from HB DB.
-    
-    Canonical locations are those whose ID appears as master_location_id
-    in other rows — i.e. they are the 'parent' that others point to.
-    Deduplicated by location_name.
-    """
+    """Return list of canonical locations grouped by state from HB DB."""
     try:
         from hockey_blast_common_lib.models import Location
         from sqlalchemy import distinct
@@ -49,7 +92,6 @@ def _get_locations():
 
     hb_session = HBSession()
     try:
-        # Get IDs that are referenced as master locations
         subq = select(distinct(Location.master_location_id)).where(
             Location.master_location_id.isnot(None)
         ).scalar_subquery()
@@ -61,13 +103,28 @@ def _get_locations():
             .order_by(Location.location_name)
         ).all()
 
-        # Deduplicate by name (keep first id per name)
-        seen = {}
+        # Deduplicate by name, skip junk entries
+        skip_names = {"NHL", "Outside Area"}
+        seen: dict[str, int] = {}
         for r in rows:
-            if r.location_name not in seen:
+            if r.location_name not in seen and r.location_name not in skip_names:
                 seen[r.location_name] = r.id
-        return [{"id": lid, "name": name} for name, lid in seen.items()]
-    except Exception as e:
+
+        # Group by state
+        groups: dict[str, list] = {}
+        for name, lid in seen.items():
+            state = _LOCATION_STATE.get(name, "Other")
+            state_label = _STATE_NAMES.get(state, state)
+            if state_label not in groups:
+                groups[state_label] = []
+            groups[state_label].append({"id": lid, "name": name})
+
+        # Return as sorted list of {state, locations[]}
+        return [
+            {"state": state, "locations": locs}
+            for state, locs in sorted(groups.items())
+        ]
+    except Exception:
         return []
 
 

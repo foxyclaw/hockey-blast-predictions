@@ -35,7 +35,29 @@ const userStore = useUserStore()
 const router = useRouter()
 const debugToken = ref(null)
 
-// Step 1: fetch pred user when Auth0 confirms authentication
+function redirectIfNeeded() {
+  const current = router.currentRoute.value.name
+  const onboardingRoutes = ['callback', 'profile-setup', 'identity', 'player-prefs']
+  console.log('[App] redirectIfNeeded — needsName:', userStore.needsNameSetup, 'needsIdentity:', userStore.needsIdentitySetup, 'needsPrefs:', userStore.needsPrefsSetup, 'route:', current)
+  if (userStore.needsNameSetup) {
+    if (!onboardingRoutes.includes(current)) {
+      console.log('[App] → redirecting to profile-setup')
+      router.push({ name: 'profile-setup' })
+    }
+  } else if (userStore.needsIdentitySetup) {
+    if (current !== 'identity' && current !== 'callback') {
+      console.log('[App] → redirecting to identity')
+      router.push({ name: 'identity' })
+    }
+  } else if (userStore.needsPrefsSetup) {
+    if (!onboardingRoutes.includes(current)) {
+      console.log('[App] → redirecting to player-prefs')
+      router.push({ name: 'player-prefs' })
+    }
+  }
+}
+
+// Single watcher: fires when Auth0 is ready, fetches user, then redirects
 watch(
   () => [isAuthenticated.value, isLoading.value],
   async ([authed, loading]) => {
@@ -43,8 +65,10 @@ watch(
       try {
         const token = idTokenClaims.value?.__raw
         debugToken.value = token ? token.substring(0, 30) + '…' : 'MISSING'
-        console.log('[App] got token:', debugToken.value)
+        console.log('[App] Auth0 ready, fetching pred user...')
         await userStore.fetchPredUser(token)
+        console.log('[App] fetchPredUser done, predUser:', userStore.predUser?.email)
+        redirectIfNeeded()
       } catch (e) {
         debugToken.value = 'EXCEPTION: ' + e.message
         console.error('[App] fetchPredUser failed:', e)
@@ -55,23 +79,4 @@ watch(
   },
   { immediate: true }
 )
-
-// Step 2: redirect to correct onboarding step once predUser is loaded
-function redirectIfNeeded() {
-  if (userStore.loading) return  // wait for fetch to finish
-  const current = router.currentRoute.value.name
-  const onboardingRoutes = ['callback', 'profile-setup', 'identity', 'player-prefs']
-  if (userStore.needsNameSetup) {
-    if (!onboardingRoutes.includes(current)) router.push({ name: 'profile-setup' })
-  } else if (userStore.needsIdentitySetup) {
-    if (current !== 'identity' && current !== 'callback') router.push({ name: 'identity' })
-  } else if (userStore.needsPrefsSetup) {
-    if (current !== 'player-prefs' && current !== 'callback' && current !== 'identity') router.push({ name: 'player-prefs' })
-  }
-}
-
-// Fire redirect whenever predUser loads or loading state changes
-watch(() => [userStore.predUser, userStore.loading], () => {
-  if (userStore.predUser && !userStore.loading) redirectIfNeeded()
-})
 </script>

@@ -44,16 +44,21 @@
           <h2 class="card-title text-lg">📍 Where do you play?</h2>
           <p class="text-sm text-base-content/60 mb-3">Select all rinks / facilities you skate at.</p>
           <div v-if="locations.length === 0" class="text-sm text-base-content/40 italic">No locations available.</div>
-          <div class="flex flex-wrap gap-2">
-            <span
-              v-for="loc in locations"
-              :key="loc.id"
-              @click="toggleLocation(loc.id)"
-              class="badge badge-lg cursor-pointer transition-all"
-              :class="form.interested_location_ids.includes(loc.id)
-                ? 'bg-primary text-primary-content border-primary'
-                : 'badge-outline'"
-            >{{ loc.name }}</span>
+          <div v-else class="space-y-4">
+            <div v-for="group in locations" :key="group.state">
+              <div class="text-xs font-bold text-base-content/50 uppercase tracking-wider mb-2">{{ group.state }}</div>
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="loc in group.locations"
+                  :key="loc.id"
+                  @click="toggleLocation(loc.id)"
+                  class="badge badge-lg cursor-pointer transition-all"
+                  :class="form.interested_location_ids.includes(loc.id)
+                    ? 'bg-primary text-primary-content border-primary'
+                    : 'badge-outline'"
+                >{{ loc.name }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
