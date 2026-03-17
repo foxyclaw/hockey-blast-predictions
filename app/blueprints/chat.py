@@ -75,7 +75,7 @@ def send_message():
         _set_mcp_env()
         from hockey_blast_mcp.bedrock_chat import chat as hb_chat
 
-        # Fetch last 10 non-off-topic messages for context
+        # Fetch last 10 non-off-topic messages for context, capped at ~8000 chars total
         recent = (
             db.query(ChatMessage)
             .filter_by(user_id=user.id, is_off_topic=False)
@@ -84,9 +84,14 @@ def send_message():
             .all()
         )
         history = []
+        char_budget = 8000
         for m in reversed(recent):
+            turn_chars = len(m.query or "") + len(m.answer or "")
+            if char_budget - turn_chars < 0:
+                break
             history.append({"role": "user", "content": m.query})
             history.append({"role": "assistant", "content": m.answer})
+            char_budget -= turn_chars
 
         result = hb_chat(query, history=history)
     except Exception as e:
