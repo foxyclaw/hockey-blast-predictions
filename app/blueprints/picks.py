@@ -11,7 +11,7 @@ from flask import Blueprint, g, jsonify, request
 from sqlalchemy import select
 
 from app.auth.jwt_validator import require_auth
-from app.db import PredSession
+from app.db import HBSession, PredSession
 from app.models.pred_league import PredLeague
 from app.models.pred_pick import PredPick
 from app.models.pred_result import PredResult
@@ -23,6 +23,42 @@ from app.services.pick_service import (
 )
 from app.services.lock_checker import get_lock_deadline
 from app.utils.response import error_response
+
+
+def _team_name(team_id: int, hb_session) -> str | None:
+    """Fetch team name from hockey_blast DB; returns None on failure."""
+    if not team_id:
+        return None
+    try:
+        from hockey_blast_common_lib.models import Team
+        team = hb_session.execute(select(Team).where(Team.id == team_id)).scalar_one_or_none()
+        return team.name if team else None
+    except Exception:
+        return None
+
+
+def _enrich_pick(pick, hb_session) -> dict:
+    """Serialize a PredPick with computed display fields."""
+    d = pick.to_dict()
+
+    # Team names
+    home_name = _team_name(pick.home_team_id, hb_session)
+    away_name = _team_name(pick.away_team_id, hb_session)
+    picked_name = _team_name(pick.picked_team_id, hb_session)
+    d["home_team_name"] = home_name
+    d["away_team_name"] = away_name
+    d["picked_team_name"] = picked_name
+
+    # Status + points
+    if pick.result:
+        d["result"] = pick.result.to_dict()
+        d["status"] = "graded"
+        d["points_earned"] = pick.result.total_points
+    else:
+        d["status"] = "pending"
+        d["points_earned"] = None
+
+    return d
 
 picks_bp = Blueprint("picks", __name__)
 
@@ -153,12 +189,8 @@ def my_picks():
     offset = (page - 1) * per_page
     picks = pred_session.execute(stmt.offset(offset).limit(per_page)).scalars().all()
 
-    picks_data = []
-    for pick in picks:
-        pick_dict = pick.to_dict()
-        if pick.result:
-            pick_dict["result"] = pick.result.to_dict()
-        picks_data.append(pick_dict)
+    hb_session = HBSession()
+    picks_data = [_enrich_pick(pick, hb_session) for pick in picks]
 
     return jsonify({
         "picks": picks_data,
@@ -180,11 +212,8 @@ def get_pick(pick_id: int):
     if pick is None or pick.user_id != user.id:
         return error_response("NOT_FOUND", "Pick not found", 404)
 
-    pick_dict = pick.to_dict()
-    if pick.result:
-        pick_dict["result"] = pick.result.to_dict()
-
-    return jsonify(pick_dict)
+    hb_session = HBSession()
+    return jsonify(_enrich_pick(pick, hb_session))
 
 
 @picks_bp.route("/<int:pick_id>", methods=["DELETE"])
