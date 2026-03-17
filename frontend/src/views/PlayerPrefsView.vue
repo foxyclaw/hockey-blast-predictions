@@ -91,7 +91,7 @@
       <!-- Section 4: Captain Claims (only if there are candidates) -->
       <div v-if="captain_candidates.length > 0" class="card bg-base-200 shadow">
         <div class="card-body">
-          <h2 class="card-title text-lg">🏆 Your Teams</h2>
+          <h2 class="card-title text-lg">🏆 Teams You Manage</h2>
           <p class="text-sm text-base-content/60 mb-3">We found teams where you've been captain. Confirm the ones that are yours.</p>
           <div class="space-y-2">
             <label

@@ -150,11 +150,13 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
 import { useAuth0 } from '@auth0/auth0-vue'
 import { useApiClient, publicClient } from "@/api/client"
 
 const api = useApiClient()
 const router = useRouter()
+const userStore = useUserStore()
 const { user } = useAuth0()
 
 const candidates = ref([])
@@ -225,6 +227,7 @@ async function confirm() {
   try {
     await api.post('/api/identity/confirm', { hb_human_id: selected.value })
     confirmed.value = true
+    await userStore.fetchPredUser()
     setTimeout(() => router.push('/player-prefs'), 1500)
   } catch (e) {
     console.error(e)
@@ -235,6 +238,7 @@ async function confirm() {
 
 async function skip() {
   try { await api.post('/api/identity/confirm', { skip: true }) } catch {}
+  await userStore.fetchPredUser()
   router.push('/player-prefs')
 }
 

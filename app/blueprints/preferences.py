@@ -35,22 +35,39 @@ def _skill_from_value(skill_value) -> str | None:
 
 
 def _get_locations():
-    """Return list of canonical locations (master_location_id IS NULL) from HB DB."""
+    """Return list of canonical locations from HB DB.
+    
+    Canonical locations are those whose ID appears as master_location_id
+    in other rows — i.e. they are the 'parent' that others point to.
+    Deduplicated by location_name.
+    """
     try:
         from hockey_blast_common_lib.models import Location
+        from sqlalchemy import distinct
     except ImportError:
         return []
 
     hb_session = HBSession()
     try:
+        # Get IDs that are referenced as master locations
+        subq = select(distinct(Location.master_location_id)).where(
+            Location.master_location_id.isnot(None)
+        ).scalar_subquery()
+
         rows = hb_session.execute(
             select(Location.id, Location.location_name)
-            .where(Location.master_location_id.is_(None))
+            .where(Location.id.in_(subq))
             .where(Location.location_name.isnot(None))
             .order_by(Location.location_name)
         ).all()
-        return [{"id": r.id, "name": r.location_name} for r in rows]
-    except Exception:
+
+        # Deduplicate by name (keep first id per name)
+        seen = {}
+        for r in rows:
+            if r.location_name not in seen:
+                seen[r.location_name] = r.id
+        return [{"id": lid, "name": name} for name, lid in seen.items()]
+    except Exception as e:
         return []
 
 

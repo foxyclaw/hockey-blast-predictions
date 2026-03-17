@@ -58,10 +58,11 @@ watch(
 
 // Step 2: redirect to correct onboarding step once predUser is loaded
 function redirectIfNeeded() {
+  if (userStore.loading) return  // wait for fetch to finish
   const current = router.currentRoute.value.name
-  const skip = ['callback', 'profile-setup', 'identity', 'player-prefs']
+  const onboardingRoutes = ['callback', 'profile-setup', 'identity', 'player-prefs']
   if (userStore.needsNameSetup) {
-    if (!skip.includes(current)) router.push({ name: 'profile-setup' })
+    if (!onboardingRoutes.includes(current)) router.push({ name: 'profile-setup' })
   } else if (userStore.needsIdentitySetup) {
     if (current !== 'identity' && current !== 'callback') router.push({ name: 'identity' })
   } else if (userStore.needsPrefsSetup) {
@@ -69,7 +70,8 @@ function redirectIfNeeded() {
   }
 }
 
-watch(() => userStore.predUser, (user) => {
-  if (user) redirectIfNeeded()
+// Fire redirect whenever predUser loads or loading state changes
+watch(() => [userStore.predUser, userStore.loading], () => {
+  if (userStore.predUser && !userStore.loading) redirectIfNeeded()
 })
 </script>
