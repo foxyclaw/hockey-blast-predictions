@@ -162,10 +162,13 @@ function closePickModal() {
 }
 
 function onPicked({ gameId, teamId, confidence }) {
-  // Update the game in the list to show the pick
-  const game = games.value.find((g) => g.game_id === gameId)
-  if (game) {
-    game.user_pick = { picked_team_id: teamId, confidence: confidence ?? 1 }
+  // Update the game in the list to show the pick — use index splice to force reactivity
+  const idx = games.value.findIndex((g) => g.game_id === gameId)
+  if (idx !== -1) {
+    games.value[idx] = {
+      ...games.value[idx],
+      user_pick: { picked_team_id: teamId, confidence: confidence ?? 1 },
+    }
   }
   closePickModal()
 }
