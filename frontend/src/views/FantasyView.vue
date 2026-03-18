@@ -205,7 +205,7 @@ const privateJoinLeague = ref(null)
 const privateJoinCode = ref('')
 const privateJoinError = ref('')
 
-const STATUS_ORDER = ['forming', 'draft_open', 'drafting', 'active', 'completed']
+const STATUS_ORDER = ['active', 'drafting', 'draft_open', 'forming', 'completed']
 const STATUS_LABELS = {
   forming: 'Forming',
   draft_open: 'Draft Open',

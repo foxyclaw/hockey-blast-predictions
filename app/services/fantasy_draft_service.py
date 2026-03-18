@@ -289,7 +289,7 @@ def _notify_manager(user_id: int, league_id: int, pick_number: int, deadline: da
             user_id=user_id,
             type="fantasy_draft",
             title="⬆️ Fantasy Draft: Your Pick!",
-            body=f"Pick #{pick_number} is yours. You have until {deadline.strftime('%b %d %H:%M UTC')} to pick.",
+            body=f"Pick #{pick_number} is yours. You have until {deadline.astimezone().strftime('%b %d %I:%M %p %Z')} to pick.",
             link=f"/fantasy/{league_id}",
         )
         pred.add(notif)
