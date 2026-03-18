@@ -131,8 +131,12 @@
 
                 <!-- Skater / Goalie sub-tabs -->
                 <div class="tabs tabs-boxed tabs-xs mb-3 w-fit">
-                  <button class="tab" :class="{ 'tab-active': poolTab === 'skaters' }" @click="poolTab = 'skaters'">Skaters</button>
-                  <button class="tab" :class="{ 'tab-active': poolTab === 'goalies' }" @click="poolTab = 'goalies'">Goalies</button>
+                  <button class="tab" :class="{ 'tab-active': poolTab === 'skaters' }" @click="poolTab = 'skaters'" :disabled="mustPickGoalie">
+                    Skaters <span v-if="mustPickSkater" class="badge badge-xs badge-success ml-1">Pick here</span>
+                  </button>
+                  <button class="tab" :class="{ 'tab-active': poolTab === 'goalies' }" @click="poolTab = 'goalies'" :disabled="mustPickSkater">
+                    Goalies <span v-if="mustPickGoalie" class="badge badge-xs badge-error ml-1">Must pick!</span>
+                  </button>
                 </div>
 
                 <!-- Skaters table -->
@@ -497,6 +501,43 @@ function setSortKey(key) {
 
 const myUserId = computed(() => userStore.predUser?.id)
 
+// My drafted players from the draft queue (already picked)
+const myDraftedRoster = computed(() => {
+  if (!myUserId.value) return []
+  return draftQueue.value.filter(p => p.user_id === myUserId.value && p.picked_at && !p.is_skipped)
+})
+
+const myDraftedSkaters = computed(() =>
+  myDraftedRoster.value.filter(p => {
+    const player = [...(pool.value.skaters || []), ...(pool.value.goalies || [])]
+      .find(pl => pl.hb_human_id === p.hb_human_id)
+    return player && !player.is_goalie
+  }).length
+)
+
+const myDraftedGoalies = computed(() =>
+  myDraftedRoster.value.filter(p => {
+    const player = [...(pool.value.skaters || []), ...(pool.value.goalies || [])]
+      .find(pl => pl.hb_human_id === p.hb_human_id)
+    return player && player.is_goalie
+  }).length
+)
+
+// True when it's my turn AND I must pick a goalie (last pick(s) need to fill goalie slot)
+const mustPickGoalie = computed(() => {
+  if (!league.value || !currentPick.value || currentPick.value.user_id !== myUserId.value) return false
+  const totalPicks = (league.value.roster_skaters || 0) + (league.value.roster_goalies || 0)
+  const picksLeft = totalPicks - myDraftedRoster.value.length
+  const goaliesNeeded = (league.value.roster_goalies || 1) - myDraftedGoalies.value
+  return picksLeft <= goaliesNeeded
+})
+
+// True when it's my turn AND I must NOT pick a goalie (goalie slots full)
+const mustPickSkater = computed(() => {
+  if (!league.value || !currentPick.value || currentPick.value.user_id !== myUserId.value) return false
+  return myDraftedGoalies.value >= (league.value.roster_goalies || 1)
+})
+
 const currentPick = computed(() =>
   draftQueue.value.find(p => !p.picked_at && !p.is_skipped)
 )
@@ -661,6 +702,14 @@ async function pickPlayer(player) {
 // Load standings when tab changes
 watch(activeTab, (tab) => {
   if (tab === 'standings') loadStandings()
+})
+
+// Auto-switch pool tab when goalie must be picked
+watch(mustPickGoalie, (val) => {
+  if (val) poolTab.value = 'goalies'
+})
+watch(mustPickSkater, (val) => {
+  if (val) poolTab.value = 'skaters'
 })
 
 onMounted(async () => {
