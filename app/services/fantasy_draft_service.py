@@ -214,6 +214,9 @@ def make_pick(league_id: int, user_id: int, hb_human_id: int) -> dict:
     now = datetime.now(timezone.utc)
     _record_pick(league_id, current, hb_human_id, player_info["is_goalie"], pred, now)
 
+    # Clear this user's draft notifications now that they've picked
+    _clear_stale_draft_notifications(user_id, league_id, pred)
+
     # Transition league status
     if league.status == "draft_open":
         league.status = "drafting"
