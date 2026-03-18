@@ -192,3 +192,23 @@ When captain is logged in and game is for their team:
 ### DB changes needed (on top of Phase 1 plan)
 - Add `sub_fee INTEGER DEFAULT 0` to `pred_sub_requests`
 - Add `roster_fee_full INTEGER DEFAULT 0` and `roster_fee_half INTEGER DEFAULT 0` to `pred_roster_invites` and `pred_team_stubs`
+
+---
+
+## Quick Interest (added 2026-03-18)
+
+### One-click "I'm interested" on sub requests and free agent posts
+- Sub request card: big **[🙋 I'm In]** button — single tap, no form
+- Free agent browsing (captain view): **[👋 Reach Out]** next to each player — single tap sends a notification to that player
+- Both actions can be undone (toggle back to "Not interested")
+- No modal, no form — friction-free. Details (fee, game info) already visible on the card.
+
+### Flow:
+1. Sub sees request → taps [🙋 I'm In] → captain gets notification → captain confirms or passes
+2. Captain sees free agent → taps [👋 Reach Out] → player gets notification + can view captain's team profile → player accepts/declines
+
+### "I'm In" button states:
+- Grey: not responded
+- Green + checkmark: interested (tap again to withdraw)
+- Faded: request filled by someone else
+
