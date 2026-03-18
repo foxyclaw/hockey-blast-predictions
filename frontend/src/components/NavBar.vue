@@ -51,7 +51,6 @@
           </li>
           <li><RouterLink to="/picks">My Picks</RouterLink></li>
           <li><RouterLink to="/leagues">Leagues</RouterLink></li>
-          <li><RouterLink to="/identity">Hockey Identity</RouterLink></li>
           <li><RouterLink to="/player-prefs">Player Profile</RouterLink></li>
           <li><hr class="my-1 opacity-20" /></li>
           <li>

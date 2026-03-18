@@ -78,7 +78,7 @@ async function submit() {
     await api.patch('/auth/me', { display_name: displayName })
     // Refresh the store so needsIdentitySetup recalculates
     await userStore.fetchPredUser(null)
-    router.push({ name: 'identity' })
+    router.push({ name: 'player-prefs' })
   } catch (e) {
     error.value = 'Something went wrong, please try again.'
     console.error(e)

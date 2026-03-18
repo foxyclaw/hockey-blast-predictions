@@ -11,6 +11,113 @@
     </div>
 
     <template v-else>
+      <!-- Section 0: Hockey Profile / Identity Linking -->
+      <div class="card bg-base-200 shadow">
+        <div class="card-body">
+          <h2 class="card-title text-lg">🏒 Your Hockey Profile</h2>
+
+          <!-- Loading claims -->
+          <div v-if="claimsLoading" class="flex items-center gap-2 text-sm text-base-content/50">
+            <span class="loading loading-spinner loading-xs"></span> Loading...
+          </div>
+
+          <template v-else>
+            <!-- Existing claims -->
+            <div v-if="existingClaims.length > 0" class="space-y-2 mb-3">
+              <div
+                v-for="claim in existingClaims"
+                :key="claim.hb_human_id"
+                class="flex items-start gap-3 rounded-xl border border-success/30 bg-success/10 p-3"
+              >
+                <span class="text-success mt-0.5">✅</span>
+                <div class="flex-1 min-w-0">
+                  <div class="font-semibold text-sm">
+                    {{ claim.profile?.first_name }} {{ claim.profile?.last_name }}
+                    <span v-if="claim.is_primary" class="badge badge-xs badge-success ml-1">Primary</span>
+                  </div>
+                  <div v-if="claim.profile?.orgs?.length" class="text-xs text-base-content/50 truncate">
+                    {{ claim.profile.orgs.join(' · ') }}
+                    <template v-if="claim.profile.first_date || claim.profile.last_date">
+                      · {{ claim.profile.first_date }} – {{ claim.profile.last_date }}
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- No claims -->
+            <p v-if="existingClaims.length === 0 && !showIdentitySearch" class="text-sm text-base-content/60 mb-3">
+              Link your Hockey Blast player record to personalize your experience.
+            </p>
+
+            <!-- Add profile button -->
+            <button
+              v-if="!showIdentitySearch"
+              class="btn btn-outline btn-sm w-fit"
+              @click="openIdentitySearch"
+            >
+              {{ existingClaims.length === 0 ? '🔗 Find my hockey profile' : '+ Add another profile' }}
+            </button>
+
+            <!-- Inline search panel -->
+            <div v-if="showIdentitySearch" class="mt-3 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium">Search for your player record</span>
+                <button class="btn btn-ghost btn-xs" @click="showIdentitySearch = false">✕ Close</button>
+              </div>
+
+              <div v-if="candidatesLoading" class="flex items-center gap-2 text-sm text-base-content/50">
+                <span class="loading loading-spinner loading-xs"></span> Searching...
+              </div>
+
+              <div v-else-if="identityCandidates.length === 0" class="text-sm text-base-content/50 italic">
+                No matching player records found.
+              </div>
+
+              <div v-else class="space-y-2">
+                <label
+                  v-for="cand in identityCandidates"
+                  :key="cand.hb_human_id"
+                  class="cursor-pointer flex items-start gap-3 rounded-xl border-2 p-3 transition-all"
+                  :class="selectedCandidateIds.includes(cand.hb_human_id)
+                    ? 'border-primary bg-primary/10'
+                    : 'border-base-300 bg-base-100'"
+                >
+                  <input
+                    type="checkbox"
+                    class="checkbox checkbox-primary checkbox-sm mt-0.5"
+                    :value="cand.hb_human_id"
+                    v-model="selectedCandidateIds"
+                  />
+                  <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-sm">
+                      {{ cand.first_name }} {{ cand.last_name }}
+                      <span v-if="cand.name_match" class="badge badge-xs badge-warning ml-1">Name Match</span>
+                    </div>
+                    <div v-if="cand.orgs?.length" class="text-xs text-base-content/50 truncate">{{ cand.orgs.join(' · ') }}</div>
+                    <div v-if="cand.skill_value" class="text-xs text-base-content/40">Skill: {{ cand.skill_value }}</div>
+                  </div>
+                </label>
+              </div>
+
+              <div v-if="identityConfirmError" class="alert alert-error text-xs py-2">{{ identityConfirmError }}</div>
+
+              <div class="flex gap-2">
+                <button
+                  class="btn btn-primary btn-sm"
+                  :disabled="selectedCandidateIds.length === 0 || confirmingIdentity"
+                  @click="confirmIdentity"
+                >
+                  <span v-if="confirmingIdentity" class="loading loading-spinner loading-xs"></span>
+                  Confirm Selection
+                </button>
+                <button class="btn btn-ghost btn-sm" @click="skipIdentity">Skip</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
       <!-- Section 1: Skill Level -->
       <div class="card bg-base-200 shadow">
         <div class="card-body">
@@ -208,6 +315,16 @@ const suggested_skill_level = ref(null)
 const captain_candidates = ref([])
 const locations = ref([])
 
+// Identity/hockey profile section
+const existingClaims = ref([])
+const claimsLoading = ref(true)
+const showIdentitySearch = ref(false)
+const identityCandidates = ref([])
+const candidatesLoading = ref(false)
+const selectedCandidateIds = ref([])
+const confirmingIdentity = ref(false)
+const identityConfirmError = ref(null)
+
 const form = reactive({
   skill_level: null,
   is_free_agent: false,
@@ -239,7 +356,67 @@ function toggleLocation(id) {
   else form.interested_location_ids.splice(idx, 1)
 }
 
+async function loadClaims() {
+  claimsLoading.value = true
+  try {
+    const { data } = await api.get('/api/identity/my-claims')
+    existingClaims.value = data.claims || []
+  } catch (e) {
+    console.error('[PlayerPrefs] failed to load identity claims', e)
+    existingClaims.value = []
+  } finally {
+    claimsLoading.value = false
+  }
+}
+
+async function openIdentitySearch() {
+  showIdentitySearch.value = true
+  selectedCandidateIds.value = []
+  identityConfirmError.value = null
+  if (identityCandidates.value.length === 0) {
+    candidatesLoading.value = true
+    try {
+      const { data } = await api.get('/api/identity/candidates')
+      identityCandidates.value = (data.candidates || []).slice(0, 5)
+    } catch (e) {
+      console.error('[PlayerPrefs] failed to load identity candidates', e)
+      identityCandidates.value = []
+    } finally {
+      candidatesLoading.value = false
+    }
+  }
+}
+
+async function confirmIdentity() {
+  if (selectedCandidateIds.value.length === 0) return
+  confirmingIdentity.value = true
+  identityConfirmError.value = null
+  try {
+    await api.post('/api/identity/confirm', { hb_human_id: selectedCandidateIds.value })
+    showIdentitySearch.value = false
+    identityCandidates.value = []
+    await loadClaims()
+  } catch (e) {
+    identityConfirmError.value = e.response?.data?.message || 'Failed to confirm. Please try again.'
+    console.error('[PlayerPrefs] identity confirm failed', e)
+  } finally {
+    confirmingIdentity.value = false
+  }
+}
+
+async function skipIdentity() {
+  showIdentitySearch.value = false
+  try {
+    await api.post('/api/identity/confirm', { skip: true })
+  } catch (e) {
+    // skip is best-effort
+  }
+}
+
 onMounted(async () => {
+  // Load identity claims in parallel
+  loadClaims()
+
   try {
     const { data } = await api.get('/api/preferences')
     const prefs = data.preferences || {}

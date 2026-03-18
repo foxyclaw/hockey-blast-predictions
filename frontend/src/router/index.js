@@ -86,7 +86,6 @@ router.beforeEach(async (to) => {
   if (!userStore.predUser) return true  // not logged in, let auth0 handle it
 
   if (userStore.needsNameSetup) return { name: 'profile-setup' }
-  if (userStore.needsIdentitySetup) return { name: 'identity' }
   if (userStore.needsPrefsSetup) return { name: 'player-prefs' }
 
   return true
