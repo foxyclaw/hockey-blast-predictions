@@ -197,8 +197,11 @@ function openNotification(n) {
     n.is_read = true
     unreadCount.value = Math.max(0, unreadCount.value - 1)
   }
-  if (n.link) router.push(n.link)
   showNotifications.value = false
+  if (n.link) {
+    // Defer navigation so dropdown closes cleanly first
+    setTimeout(() => router.push(n.link), 50)
+  }
 }
 
 function timeAgo(iso) {
