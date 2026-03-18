@@ -167,3 +167,28 @@ When captain is logged in and game is for their team:
 - Captain identity is already established via `pred_user_captain_claims`
 - "Forfeit game" — just a captain action, probably just sends a message to the league (out of scope for now)
 - Keep it simple: connect people, don't over-manage. The platform facilitates intro, humans handle the rest.
+
+---
+
+## Fees (added 2026-03-18)
+
+### Sub fee (per game)
+- `sub_fee` (integer, cents or points) on `pred_sub_requests` — can be 0
+- Shown to subs before they respond: "💰 Sub fee: $15" or "Free"
+- Captain sets it when creating the request
+
+### Roster fee (joining a team)
+- `roster_fee_half` and `roster_fee_full` (integer, cents) on `pred_team_stubs` and roster invites
+- Half-time player (partial season) vs full-time
+- Shown on invite: "Full season: $350 | Half season: $200"
+- Captains fill this in when inviting or when creating stub team
+- Fee info is informational only for now (no payment processing) — just transparency
+
+### UI
+- Sub request card shows fee badge: `💰 $15/game` or `🆓 Free`
+- Roster invite shows: `📋 Full: $350 · Half: $200`
+- Free agents can filter by "Free subs only"
+
+### DB changes needed (on top of Phase 1 plan)
+- Add `sub_fee INTEGER DEFAULT 0` to `pred_sub_requests`
+- Add `roster_fee_full INTEGER DEFAULT 0` and `roster_fee_half INTEGER DEFAULT 0` to `pred_roster_invites` and `pred_team_stubs`
