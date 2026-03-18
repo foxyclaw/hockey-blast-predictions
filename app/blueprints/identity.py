@@ -310,21 +310,39 @@ def confirm_identity():
     existing_ids = {c.hb_human_id for c in existing}
     has_primary = any(c.is_primary for c in existing)
 
+    pending_review_ids = []
     for idx, hid in enumerate(ids_to_claim):
         if hid in existing_ids:
             continue
         is_primary = not has_primary and idx == 0
         # Build and store the full profile snapshot for disaster recovery
         snapshot = _build_human_profile(hb_session, hid)
+
+        # Check if any OTHER user already has a confirmed claim for this hb_human_id
+        conflicting = pred_session.execute(
+            select(PredUserHbClaim).where(
+                PredUserHbClaim.hb_human_id == hid,
+                PredUserHbClaim.user_id != user.id,
+                PredUserHbClaim.claim_status == "confirmed",
+            )
+        ).scalars().first()
+
+        if conflicting:
+            claim_status = "pending_review"
+            pending_review_ids.append(hid)
+        else:
+            claim_status = "confirmed"
+
         claim = PredUserHbClaim(
             user_id=user.id,
             hb_human_id=hid,
             source="self_reported",
-            is_primary=is_primary,
+            is_primary=is_primary and claim_status == "confirmed",
             profile_snapshot=snapshot,
+            claim_status=claim_status,
         )
         pred_session.add(claim)
-        if is_primary:
+        if is_primary and claim_status == "confirmed":
             has_primary = True
             user.hb_human_id = hid
 
@@ -334,12 +352,30 @@ def confirm_identity():
         select(PredUserHbClaim).where(PredUserHbClaim.user_id == user.id)
     ).scalars().all()
 
+    if pending_review_ids:
+        return jsonify({
+            "status": "pending_review",
+            "message": "This player profile is already claimed. Your claim has been submitted for admin review.",
+            "linked": False,
+            "pending_hb_human_ids": pending_review_ids,
+            "claims": [
+                {
+                    "hb_human_id": c.hb_human_id,
+                    "is_primary": c.is_primary,
+                    "claim_status": c.claim_status,
+                    "profile": c.profile_snapshot,
+                }
+                for c in all_claims
+            ],
+        }), 202
+
     return jsonify({
         "linked": True,
         "claims": [
             {
                 "hb_human_id": c.hb_human_id,
                 "is_primary": c.is_primary,
+                "claim_status": c.claim_status,
                 "profile": c.profile_snapshot,
             }
             for c in all_claims

@@ -495,7 +495,14 @@ async function save() {
   }
 }
 
-function skip() {
+async function skip() {
+  // Mark prefs as completed so the onboarding guard doesn't loop
+  try {
+    await api.patch('/api/preferences', {})
+  } catch (e) {
+    // best effort
+  }
+  if (userStore.predUser) userStore.predUser.preferences_completed = true
   router.push('/')
 }
 </script>

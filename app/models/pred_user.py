@@ -43,6 +43,7 @@ class PredUser(PredBase):
     # Virtual currency balance (paper money). Starts at 1000, modified by wagers on picks.
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     preferences_completed: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=sa.false(), nullable=False
@@ -87,4 +88,5 @@ class PredUser(PredBase):
             "balance": self.balance,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "preferences_completed": self.preferences_completed,
+            "is_admin": self.is_admin,
         }
