@@ -35,11 +35,8 @@ watch(
       return
     }
     await userStore.fetchPredUser(idTokenClaims.value?.__raw)
-    if (userStore.needsIdentitySetup) {
-      router.replace({ name: 'identity' })
-    } else {
-      router.replace({ name: 'home' })
-    }
+    // Identity linking is optional — always go home after login
+    router.replace({ name: 'home' })
   },
   { immediate: true }
 )

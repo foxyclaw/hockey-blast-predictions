@@ -496,13 +496,15 @@ async function save() {
 }
 
 async function skip() {
-  // Mark prefs as completed so the onboarding guard doesn't loop
+  // Mark prefs as completed server-side and locally, then navigate away
   try {
     await api.patch('/api/preferences', {})
   } catch (e) {
     // best effort
   }
-  if (userStore.predUser) userStore.predUser.preferences_completed = true
-  router.push('/')
+  if (userStore.predUser) {
+    userStore.predUser.preferences_completed = true
+  }
+  router.replace({ name: 'home' })
 }
 </script>
