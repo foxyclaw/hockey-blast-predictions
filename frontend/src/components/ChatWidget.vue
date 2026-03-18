@@ -56,7 +56,7 @@
             </div>
             <!-- Assistant bubble -->
             <div class="chat chat-start">
-              <div class="chat-bubble bg-base-100 text-base-content text-sm whitespace-pre-wrap" v-html="renderMarkdown(msg.answer)"></div>
+              <div class="chat-bubble bg-base-100 text-base-content text-sm" v-html="renderMarkdown(msg.answer)"></div>
               <!-- Tools used (collapsible) -->
               <div v-if="msg.tools_used?.length" class="mt-1 ml-1">
                 <details class="text-xs text-base-content/40">
@@ -184,9 +184,33 @@ const hints = [
 
 function renderMarkdown(text) {
   if (!text) return ''
-  // Simple: bold **text**, line breaks, preserve tables
   return text
+    // Headers
+    .replace(/^### (.+)$/gm, '<div class="font-bold text-base mt-3 mb-1">$1</div>')
+    .replace(/^## (.+)$/gm, '<div class="font-bold text-lg mt-3 mb-1">$1</div>')
+    .replace(/^# (.+)$/gm, '<div class="font-bold text-xl mt-3 mb-1">$1</div>')
+    // Bold + italic
+    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    // Horizontal rule
+    .replace(/^---+$/gm, '<hr class="border-base-content/20 my-2">')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code class="bg-base-300 px-1 rounded text-xs">$1</code>')
+    // Tables — wrap in overflow div
+    .replace(/((\|.+\|\n?)+)/g, (match) => {
+      const rows = match.trim().split('\n')
+      let html = '<div class="overflow-x-auto my-2"><table class="table table-xs w-full text-xs">'
+      rows.forEach((row, i) => {
+        if (/^\|[-| ]+\|$/.test(row.trim())) return // separator row
+        const cells = row.split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
+        const tag = i === 0 ? 'th' : 'td'
+        html += '<tr>' + cells.map(c => `<${tag} class="border border-base-content/10 px-2 py-1">${c.trim()}</${tag}>`).join('') + '</tr>'
+      })
+      html += '</table></div>'
+      return html
+    })
+    // Line breaks (after block elements handled above)
     .replace(/\n/g, '<br>')
 }
 
@@ -276,6 +300,19 @@ async function scrollToBottom() {
   width: min(860px, calc(100vw - 48px));
   height: calc(100vh - 180px);
   border-radius: 1rem;
+}
+
+/* Mobile maximized — true fullscreen */
+@media (max-width: 640px) {
+  .chat-panel.maximized {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
 }
 .chat-messages {
   scrollbar-width: thin;
