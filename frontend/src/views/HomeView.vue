@@ -26,7 +26,7 @@
     </div>
 
     <!-- Loading skeleton -->
-    <div v-if="loading && !games.length" class="space-y-4">
+    <div v-if="loading && !games.length" class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div v-for="i in 3" :key="i" class="card bg-base-200 shadow-md animate-pulse">
         <div class="card-body p-4 gap-3">
           <div class="h-4 bg-base-300 rounded w-1/3"></div>
@@ -60,7 +60,7 @@
     </div>
 
     <!-- Games list -->
-    <div v-else class="space-y-4">
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <GameCard
         v-for="game in games"
         :key="game.game_id"

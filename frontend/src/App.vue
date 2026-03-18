@@ -22,7 +22,7 @@
         <div>🧪 lastApiCall: <b>{{ debugLastCall || 'none' }}</b> | status: <b>{{ debugLastStatus || '—' }}</b></div>
         <div v-if="debugLastError" class="text-red-400">💥 lastError: <b>{{ debugLastError }}</b></div>
       </div>
-      <main class="flex-1 container mx-auto px-4 py-6 max-w-3xl">
+      <main class="flex-1 container mx-auto px-4 py-6 max-w-6xl">
         <RouterView />
       </main>
       <footer class="footer footer-center p-4 bg-base-300 text-base-content text-xs opacity-60">
