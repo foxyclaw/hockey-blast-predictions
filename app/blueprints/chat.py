@@ -12,8 +12,7 @@ import os
 
 from flask import Blueprint, g, jsonify, request
 from app.auth.jwt_validator import require_auth, optional_auth
-
-ANONYMOUS_USER_ID = 0
+from app.constants import ANONYMOUS_USER_ID
 from app.db import PredSession
 from app.models.chat_message import ChatMessage
 from app.models.chat_feedback import ChatFeedback
