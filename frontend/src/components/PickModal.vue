@@ -292,10 +292,14 @@ async function submitPick(teamId) {
     }
     if (props.leagueId) payload.league_id = props.leagueId
     if (wager.value && wager.value > 0) payload.wager = wager.value
-    await picksStore.submitPick(payload)
+    console.log('[Pick] submitting payload:', JSON.stringify(payload))
+    console.log('[Pick] game:', props.game?.game_id, 'home:', props.game?.home_team?.id, 'visitor:', props.game?.visitor_team?.id)
+    const result = await picksStore.submitPick(payload)
+    console.log('[Pick] success:', result)
     submitted.value = true
     emit('picked', { gameId: props.game.game_id, teamId })
   } catch (e) {
+    console.error('[Pick] error:', e.response?.status, e.response?.data, e.message)
     submitError.value = e.response?.data?.message ?? 'Could not submit pick. Try again.'
   } finally {
     submitting.value = false

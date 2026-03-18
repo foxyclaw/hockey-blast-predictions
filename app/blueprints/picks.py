@@ -137,6 +137,11 @@ def create_pick():
     league_id = data.get("league_id")
     if not league_id:
         league_id = _get_or_create_global_league(user, pred_session)
+
+    import logging
+    logging.getLogger(__name__).info(
+        f"[Pick] user={user.id} game={game_id} team={picked_team_id} league={league_id} confidence={data.get('confidence', 1)}"
+    )
     confidence = data.get("confidence", 1)
     wager = data.get("wager", None)
 
