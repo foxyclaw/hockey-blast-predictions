@@ -146,8 +146,8 @@
                         <th class="cursor-pointer text-right" @click="setSortKey('assists')">A <span v-if="sortKey === 'assists'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
                         <th class="cursor-pointer text-right" @click="setSortKey('points')">Pts <span v-if="sortKey === 'points'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
                         <th class="cursor-pointer text-right" @click="setSortKey('penalties')">Pen <span v-if="sortKey === 'penalties'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
-                        <th class="cursor-pointer text-right" @click="setSortKey('fantasy_points')">F.Pts <span v-if="sortKey === 'fantasy_points'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
-                        <th class="cursor-pointer text-right" @click="setSortKey('fantasy_ppg')">F.PPG <span v-if="sortKey === 'fantasy_ppg'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
+                        <th class="cursor-pointer text-right" @click="setSortKey('fantasy_points')">FP <span v-if="sortKey === 'fantasy_points'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
+                        <th class="cursor-pointer text-right" @click="setSortKey('fantasy_ppg')">FPPG <span v-if="sortKey === 'fantasy_ppg'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
                         <th></th>
                       </tr>
                     </thead>
@@ -163,8 +163,8 @@
                         <td class="text-right">{{ p.assists }}</td>
                         <td class="text-right">{{ p.points }}</td>
                         <td class="text-right">{{ p.penalties }}</td>
-                        <td class="text-right font-medium">{{ p.fantasy_points }}</td>
-                        <td class="text-right font-bold text-primary">{{ p.fantasy_ppg }}</td>
+                        <td class="text-right font-bold text-primary">{{ p.fantasy_points }}</td>
+                        <td class="text-right text-base-content/60">{{ p.fantasy_ppg }}</td>
                         <td class="text-right">
                           <span v-if="p.drafted_by" class="text-xs text-base-content/40">{{ p.drafted_by.team_name }}</span>
                           <template v-else-if="currentPick && currentPick.user_id === myUserId && league.is_member">
@@ -483,7 +483,7 @@ const positionFilter = ref('')
 const picking = ref(false)
 const pickError = ref('')
 const poolTab = ref('skaters')
-const sortKey = ref('fantasy_ppg')
+const sortKey = ref('fantasy_points')
 const sortDir = ref('desc')
 
 function setSortKey(key) {

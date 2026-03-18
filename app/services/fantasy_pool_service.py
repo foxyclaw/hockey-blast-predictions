@@ -92,8 +92,8 @@ def get_player_pool(level_id: int, org_id: int = 1) -> dict:
             "is_goalie": False,
         })
 
-    # Sort by fantasy_ppg descending (best players first)
-    skaters.sort(key=lambda p: p["fantasy_ppg"], reverse=True)
+    # Sort by total fantasy points descending (FP); FPPG is available as secondary column
+    skaters.sort(key=lambda p: p["fantasy_points"], reverse=True)
 
     # ── Goalies ───────────────────────────────────────────────────────────────
     goalie_stmt = (
