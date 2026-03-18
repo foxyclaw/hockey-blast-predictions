@@ -128,6 +128,47 @@ def _get_locations():
         return []
 
 
+def _get_locations_for_human(hb_human_id: int) -> list[int]:
+    """Return list of master location IDs where a human has played."""
+    try:
+        from hockey_blast_common_lib.models import GameRoster, Game, Location
+    except ImportError:
+        return []
+
+    hb_session = HBSession()
+    try:
+        # Get all game_ids the human played in
+        rows = hb_session.execute(
+            select(Game.location_id)
+            .join(GameRoster, GameRoster.game_id == Game.id)
+            .where(GameRoster.human_id == hb_human_id)
+            .where(Game.location_id.isnot(None))
+        ).all()
+
+        raw_location_ids = {r.location_id for r in rows}
+        if not raw_location_ids:
+            return []
+
+        # Resolve to master locations
+        loc_rows = hb_session.execute(
+            select(Location.id, Location.master_location_id)
+            .where(Location.id.in_(raw_location_ids))
+        ).all()
+
+        master_ids: set[int] = set()
+        for loc in loc_rows:
+            if loc.master_location_id is not None:
+                master_ids.add(loc.master_location_id)
+            else:
+                master_ids.add(loc.id)  # it IS the master
+
+        return list(master_ids)
+    except Exception:
+        return []
+    finally:
+        hb_session.close()
+
+
 def _get_captain_candidates(user):
     """
     Build captain candidates list from all of the user's HB claim snapshots.
@@ -226,6 +267,7 @@ def get_preferences():
             "notify_email": True,
             "notify_phone": None,
             "interested_location_ids": [],
+            "skill_level_comment": None,
         }
 
     # Suggested skill level from primary claim's profile_snapshot
@@ -239,6 +281,18 @@ def get_preferences():
     if primary_claim and primary_claim.profile_snapshot:
         skill_val = primary_claim.profile_snapshot.get("skill_value")
         suggested_skill_level = _skill_from_value(skill_val)
+
+    # Auto-pre-select locations if the user has no saved preferences and has claims
+    if not prefs["interested_location_ids"]:
+        all_claims = pred_session.execute(
+            select(PredUserHbClaim).where(PredUserHbClaim.user_id == user.id)
+        ).scalars().all()
+        auto_location_ids: set[int] = set()
+        for claim in all_claims:
+            ids = _get_locations_for_human(claim.hb_human_id)
+            auto_location_ids.update(ids)
+        if auto_location_ids:
+            prefs["interested_location_ids"] = list(auto_location_ids)
 
     # Captain candidates
     captain_candidates = _get_captain_candidates(user)
@@ -313,6 +367,15 @@ def update_preferences():
         prefs_obj.notify_phone = None
     if "interested_location_ids" in data:
         prefs_obj.interested_location_ids = data["interested_location_ids"] or []
+    if "skill_level_comment" in data:
+        raw_comment = (data["skill_level_comment"] or "").strip()
+        if len(raw_comment) > 500:
+            return error_response(
+                "VALIDATION_ERROR",
+                "Skill level comment must be 500 characters or fewer",
+                400,
+            )
+        prefs_obj.skill_level_comment = raw_comment or None
 
     # ── Handle captain claims ──────────────────────────────────────────────────
     if "captain_team_ids" in data:

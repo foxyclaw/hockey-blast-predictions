@@ -142,6 +142,19 @@
               >💡 Suggested</div>
             </div>
           </div>
+          <div class="form-control mt-4">
+            <label class="label">
+              <span class="label-text text-sm">Describe your level <span class="text-base-content/50">(optional)</span></span>
+              <span class="label-text-alt text-xs text-base-content/40">{{ 500 - (form.skill_level_comment || '').length }} chars left</span>
+            </label>
+            <textarea
+              v-model="form.skill_level_comment"
+              class="textarea textarea-bordered bg-base-100 text-sm resize-none"
+              rows="2"
+              maxlength="500"
+              placeholder="e.g. Played D3 college, now casual rec league on weekends"
+            ></textarea>
+          </div>
         </div>
       </div>
 
@@ -327,6 +340,7 @@ const identityConfirmError = ref(null)
 
 const form = reactive({
   skill_level: null,
+  skill_level_comment: '',
   is_free_agent: false,
   wants_to_sub: false,
   notify_email: true,
@@ -422,6 +436,7 @@ onMounted(async () => {
     const prefs = data.preferences || {}
 
     form.skill_level = prefs.skill_level || null
+    form.skill_level_comment = prefs.skill_level_comment || ''
     form.is_free_agent = prefs.is_free_agent || false
     form.wants_to_sub = prefs.wants_to_sub || false
     form.notify_email = prefs.notify_email !== false
@@ -458,6 +473,7 @@ async function save() {
   try {
     const payload = {
       skill_level: form.skill_level,
+      skill_level_comment: form.skill_level_comment || '',
       is_free_agent: form.is_free_agent,
       wants_to_sub: form.wants_to_sub,
       notify_email: form.notify_email,

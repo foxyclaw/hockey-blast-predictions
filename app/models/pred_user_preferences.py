@@ -5,7 +5,7 @@ One row per user (unique on user_id).
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import PredBase
@@ -24,6 +24,7 @@ class PredUserPreferences(PredBase):
     notify_email: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notify_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     interested_location_ids: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    skill_level_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -45,4 +46,5 @@ class PredUserPreferences(PredBase):
             "notify_email": self.notify_email,
             "notify_phone": self.notify_phone,
             "interested_location_ids": self.interested_location_ids or [],
+            "skill_level_comment": self.skill_level_comment,
         }
