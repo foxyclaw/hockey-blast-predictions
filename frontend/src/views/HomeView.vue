@@ -161,11 +161,11 @@ function closePickModal() {
   selectedGame.value = null
 }
 
-function onPicked({ gameId, teamId }) {
+function onPicked({ gameId, teamId, confidence }) {
   // Update the game in the list to show the pick
   const game = games.value.find((g) => g.game_id === gameId)
   if (game) {
-    game.user_pick = { picked_team_id: teamId, confidence: 1 }
+    game.user_pick = { picked_team_id: teamId, confidence: confidence ?? 1 }
   }
   closePickModal()
 }

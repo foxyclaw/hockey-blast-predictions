@@ -297,7 +297,7 @@ async function submitPick(teamId) {
     const result = await picksStore.submitPick(payload)
     console.log('[Pick] success:', result)
     submitted.value = true
-    emit('picked', { gameId: props.game.game_id, teamId })
+    emit('picked', { gameId: props.game.game_id, teamId, confidence: confidence.value })
   } catch (e) {
     console.error('[Pick] error:', e.response?.status, e.response?.data, e.message)
     submitError.value = e.response?.data?.message ?? 'Could not submit pick. Try again.'
@@ -315,13 +315,19 @@ function close() {
   emit('close')
 }
 
-// Open/close the native dialog
+// Open/close the native dialog — pre-populate existing pick if any
 watch(
   () => props.open,
   async (val) => {
     await nextTick()
     if (!modalEl.value) return
     if (val) {
+      // Pre-fill from existing pick on the game
+      const existing = props.game?.user_pick
+      if (existing) {
+        selectedTeam.value = existing.picked_team_id ?? null
+        confidence.value = existing.confidence ?? 1
+      }
       modalEl.value.showModal()
     } else {
       modalEl.value.close()
