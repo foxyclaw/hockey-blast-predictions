@@ -57,6 +57,9 @@ class PredUser(PredBase):
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    last_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # ── Relationships ──────────────────────────────────────────────────────────
     league_memberships: Mapped[list["PredLeagueMember"]] = relationship(
