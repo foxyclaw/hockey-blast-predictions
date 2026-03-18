@@ -30,13 +30,15 @@
           <div
             v-for="league in group.leagues"
             :key="league.id"
-            class="card bg-base-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            @click="$router.push(`/fantasy/${league.id}`)"
+            class="card bg-base-200 shadow-sm hover:shadow-md transition-shadow"
           >
             <div class="card-body p-4">
-              <div class="flex items-start justify-between gap-2">
+              <div class="flex items-start justify-between gap-2 cursor-pointer" @click="$router.push(`/fantasy/${league.id}`)">
                 <div>
-                  <h3 class="font-bold text-base">{{ league.name }}</h3>
+                  <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-base">{{ league.name }}</h3>
+                    <span v-if="league.is_private" class="badge badge-xs badge-neutral gap-1">🔒 Private</span>
+                  </div>
                   <p class="text-xs text-base-content/50">Level: {{ league.level_name }}</p>
                   <p v-if="league.season_label" class="text-xs text-base-content/50">{{ league.season_label }}</p>
                 </div>
@@ -48,10 +50,45 @@
                 <span>👥 {{ league.manager_count }} / {{ league.max_managers }} managers</span>
                 <span v-if="league.is_member" class="badge badge-xs badge-success">Joined</span>
               </div>
+              <!-- Join button / code input for non-members in forming status -->
+              <div v-if="!league.is_member && league.status === 'forming'" class="mt-3">
+                <div v-if="!league.is_private">
+                  <button class="btn btn-xs btn-outline btn-primary" @click="$router.push(`/fantasy/${league.id}`)">Join →</button>
+                </div>
+                <div v-else>
+                  <button class="btn btn-xs btn-outline btn-neutral" @click="startJoinPrivate(league)">Enter Code to Join</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Private join code prompt modal -->
+    <div v-if="showPrivateJoinModal" class="modal modal-open">
+      <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-2">Join Private League</h3>
+        <p class="text-sm text-base-content/60 mb-4">Enter the invite code to join <strong>{{ privateJoinLeague?.name }}</strong>.</p>
+        <form @submit.prevent="goToPrivateLeague" class="space-y-3">
+          <div class="form-control">
+            <input
+              v-model="privateJoinCode"
+              type="text"
+              placeholder="e.g. X7K2M9"
+              class="input input-bordered input-sm uppercase"
+              maxlength="6"
+              required
+            />
+          </div>
+          <div v-if="privateJoinError" class="alert alert-error text-sm py-2">{{ privateJoinError }}</div>
+          <div class="modal-action">
+            <button type="button" class="btn btn-ghost btn-sm" @click="showPrivateJoinModal = false">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm">Continue →</button>
+          </div>
+        </form>
+      </div>
+      <div class="modal-backdrop" @click="showPrivateJoinModal = false"></div>
     </div>
 
     <!-- Create League Modal -->
@@ -103,6 +140,13 @@
             />
           </div>
 
+          <div class="form-control">
+            <label class="label cursor-pointer justify-start gap-3">
+              <input type="checkbox" v-model="createForm.is_private" class="toggle toggle-sm" />
+              <span class="label-text text-sm">🔒 Private league (invite only)</span>
+            </label>
+          </div>
+
           <div v-if="createError" class="alert alert-error text-sm py-2">{{ createError }}</div>
 
           <div class="modal-action mt-2">
@@ -115,6 +159,23 @@
         </form>
       </div>
       <div class="modal-backdrop" @click="showCreateModal = false"></div>
+    </div>
+
+    <!-- Join Code reveal modal (shown after creating a private league) -->
+    <div v-if="showJoinCodeModal" class="modal modal-open">
+      <div class="modal-box max-w-sm text-center">
+        <div class="text-4xl mb-3">🔒</div>
+        <h3 class="font-bold text-lg mb-2">Private League Created!</h3>
+        <p class="text-sm text-base-content/60 mb-4">Share this code with friends so they can join:</p>
+        <div class="bg-base-300 rounded-lg px-6 py-4 text-3xl font-mono font-bold tracking-widest text-primary">
+          {{ createdJoinCode }}
+        </div>
+        <p class="text-xs text-base-content/40 mt-3">You can find this code again in the league settings.</p>
+        <div class="modal-action justify-center">
+          <button class="btn btn-primary btn-sm" @click="showJoinCodeModal = false">Got it!</button>
+        </div>
+      </div>
+      <div class="modal-backdrop" @click="showJoinCodeModal = false"></div>
     </div>
   </div>
 </template>
@@ -135,7 +196,14 @@ const levelsLoading = ref(false)
 const showCreateModal = ref(false)
 const creating = ref(false)
 const createError = ref('')
-const createForm = ref({ name: '', team_name: '', level_id: '', season_label: '' })
+const createForm = ref({ name: '', team_name: '', level_id: '', season_label: '', is_private: false })
+const createdJoinCode = ref('')
+const showJoinCodeModal = ref(false)
+
+const showPrivateJoinModal = ref(false)
+const privateJoinLeague = ref(null)
+const privateJoinCode = ref('')
+const privateJoinError = ref('')
 
 const STATUS_ORDER = ['forming', 'draft_open', 'drafting', 'active', 'completed']
 const STATUS_LABELS = {
@@ -206,14 +274,36 @@ async function createLeague() {
       team_name: createForm.value.team_name,
       level_id: createForm.value.level_id,
       season_label: createForm.value.season_label || undefined,
+      is_private: createForm.value.is_private,
     })
     showCreateModal.value = false
-    createForm.value = { name: '', team_name: '', level_id: '', season_label: '' }
-    router.push(`/fantasy/${data.id}`)
+    if (data.is_private && data.join_code) {
+      createdJoinCode.value = data.join_code
+      showJoinCodeModal.value = true
+      // Navigate after a moment
+      setTimeout(() => router.push(`/fantasy/${data.id}`), 0)
+    } else {
+      router.push(`/fantasy/${data.id}`)
+    }
+    createForm.value = { name: '', team_name: '', level_id: '', season_label: '', is_private: false }
   } catch (e) {
     createError.value = e?.response?.data?.message || 'Failed to create league'
   } finally {
     creating.value = false
+  }
+}
+
+function startJoinPrivate(league) {
+  privateJoinLeague.value = league
+  privateJoinCode.value = ''
+  privateJoinError.value = ''
+  showPrivateJoinModal.value = true
+}
+
+function goToPrivateLeague() {
+  if (privateJoinLeague.value) {
+    router.push(`/fantasy/${privateJoinLeague.value.id}?join_code=${privateJoinCode.value.toUpperCase()}`)
+    showPrivateJoinModal.value = false
   }
 }
 

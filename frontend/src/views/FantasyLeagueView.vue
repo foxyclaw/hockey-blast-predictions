@@ -13,10 +13,16 @@
             <div class="text-xs text-base-content/40 mb-1">
               <RouterLink to="/fantasy" class="link link-hover">Fantasy</RouterLink> /
             </div>
-            <h1 class="text-2xl font-extrabold tracking-tight">{{ league.name }}</h1>
+            <div class="flex items-center gap-2">
+              <h1 class="text-2xl font-extrabold tracking-tight">{{ league.name }}</h1>
+              <span v-if="league.is_private" class="badge badge-neutral badge-sm">🔒 Private</span>
+            </div>
             <p class="text-sm text-base-content/50 mt-1">
               Level: {{ league.level_name }}
               <span v-if="league.season_label"> · {{ league.season_label }}</span>
+            </p>
+            <p v-if="league.is_private && league.join_code && league.is_creator" class="text-xs text-base-content/40 mt-1">
+              Invite code: <span class="font-mono font-bold text-base-content/70">{{ league.join_code }}</span>
             </p>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
@@ -106,64 +112,129 @@
             <span>✅ Draft complete! Season is {{ league.status === 'active' ? 'active' : 'completed' }}.</span>
           </div>
 
-          <!-- Player picker (only when it's your turn) -->
-          <div v-if="currentPick && currentPick.user_id === myUserId && league.is_member" class="mb-6">
+          <!-- Player pool panel (shown during draft, full pool with drafted indicators) -->
+          <div v-if="['draft_open', 'drafting'].includes(league.status)" class="mb-6">
             <div class="card bg-base-200 shadow">
               <div class="card-body p-4">
-                <h3 class="font-semibold mb-3">Pick a Player</h3>
-
-                <!-- Filter -->
-                <div class="flex gap-3 mb-3 flex-wrap">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <h3 class="font-semibold">
+                    Draft Pool
+                    <span v-if="currentPick && currentPick.user_id === myUserId && league.is_member" class="badge badge-success badge-sm ml-2 animate-pulse">Your Pick!</span>
+                  </h3>
                   <input
                     v-model="playerFilter"
                     type="text"
                     placeholder="Search player..."
-                    class="input input-bordered input-sm flex-1 min-w-[160px]"
+                    class="input input-bordered input-xs w-40"
                   />
-                  <select v-model="positionFilter" class="select select-bordered select-sm w-32">
-                    <option value="">All</option>
-                    <option value="skater">Skaters</option>
-                    <option value="goalie">Goalies</option>
-                  </select>
                 </div>
 
-                <div class="overflow-x-auto max-h-72 overflow-y-auto">
+                <!-- Skater / Goalie sub-tabs -->
+                <div class="tabs tabs-boxed tabs-xs mb-3 w-fit">
+                  <button class="tab" :class="{ 'tab-active': poolTab === 'skaters' }" @click="poolTab = 'skaters'">Skaters</button>
+                  <button class="tab" :class="{ 'tab-active': poolTab === 'goalies' }" @click="poolTab = 'goalies'">Goalies</button>
+                </div>
+
+                <!-- Skaters table -->
+                <div v-if="poolTab === 'skaters'" class="overflow-x-auto max-h-80 overflow-y-auto">
                   <table class="table table-xs w-full">
-                    <thead class="sticky top-0 bg-base-200">
+                    <thead class="sticky top-0 bg-base-200 z-10">
                       <tr>
-                        <th>Player</th>
-                        <th>Pos</th>
-                        <th>GP</th>
-                        <th>G</th>
-                        <th>A</th>
-                        <th>PPG</th>
+                        <th class="cursor-pointer" @click="setSortKey('name')">Player <span v-if="sortKey === 'name'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
+                        <th class="cursor-pointer text-right" @click="setSortKey('games_played')">GP <span v-if="sortKey === 'games_played'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
+                        <th class="cursor-pointer text-right" @click="setSortKey('goals')">G <span v-if="sortKey === 'goals'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
+                        <th class="cursor-pointer text-right" @click="setSortKey('assists')">A <span v-if="sortKey === 'assists'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
+                        <th class="cursor-pointer text-right" @click="setSortKey('points')">Pts <span v-if="sortKey === 'points'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
+                        <th class="cursor-pointer text-right" @click="setSortKey('penalties')">Pen <span v-if="sortKey === 'penalties'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
+                        <th class="cursor-pointer text-right" @click="setSortKey('fantasy_points')">F.Pts <span v-if="sortKey === 'fantasy_points'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
+                        <th class="cursor-pointer text-right" @click="setSortKey('fantasy_ppg')">F.PPG <span v-if="sortKey === 'fantasy_ppg'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span></th>
                         <th></th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="p in filteredPool" :key="p.hb_human_id" class="hover">
+                      <tr
+                        v-for="p in sortedSkaters"
+                        :key="p.hb_human_id"
+                        :class="p.drafted_by ? 'opacity-40' : 'hover'"
+                      >
                         <td>{{ p.first_name }} {{ p.last_name }}</td>
-                        <td>{{ p.is_goalie ? 'G' : 'SK' }}</td>
-                        <td>{{ p.games_played }}</td>
-                        <td>{{ p.goals }}</td>
-                        <td>{{ p.assists }}</td>
-                        <td>{{ p.ppg }}</td>
-                        <td>
-                          <button
-                            class="btn btn-xs btn-primary"
-                            :disabled="picking"
-                            @click="pickPlayer(p)"
-                          >
-                            Pick
-                          </button>
+                        <td class="text-right">{{ p.games_played }}</td>
+                        <td class="text-right">{{ p.goals }}</td>
+                        <td class="text-right">{{ p.assists }}</td>
+                        <td class="text-right">{{ p.points }}</td>
+                        <td class="text-right">{{ p.penalties }}</td>
+                        <td class="text-right font-medium">{{ p.fantasy_points }}</td>
+                        <td class="text-right font-bold text-primary">{{ p.fantasy_ppg }}</td>
+                        <td class="text-right">
+                          <span v-if="p.drafted_by" class="text-xs text-base-content/40">{{ p.drafted_by.team_name }}</span>
+                          <template v-else-if="currentPick && currentPick.user_id === myUserId && league.is_member">
+                            <button
+                              class="btn btn-xs btn-primary"
+                              :disabled="picking"
+                              @click="pickPlayer(p)"
+                            >
+                              Draft
+                            </button>
+                          </template>
+                          <template v-else>
+                            <button class="btn btn-xs btn-disabled" title="Not your turn" disabled>Draft</button>
+                          </template>
                         </td>
                       </tr>
-                      <tr v-if="filteredPool.length === 0">
-                        <td colspan="7" class="text-center text-base-content/40 py-4">No available players</td>
+                      <tr v-if="sortedSkaters.length === 0">
+                        <td colspan="9" class="text-center text-base-content/40 py-4">No skaters found</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
+
+                <!-- Goalies table -->
+                <div v-if="poolTab === 'goalies'" class="overflow-x-auto max-h-80 overflow-y-auto">
+                  <table class="table table-xs w-full">
+                    <thead class="sticky top-0 bg-base-200 z-10">
+                      <tr>
+                        <th>Player</th>
+                        <th class="text-right">GP</th>
+                        <th class="text-right">GAA</th>
+                        <th class="text-right">SV%</th>
+                        <th class="text-right">F.Pts</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="p in filteredGoalies"
+                        :key="p.hb_human_id"
+                        :class="p.drafted_by ? 'opacity-40' : 'hover'"
+                      >
+                        <td>{{ p.first_name }} {{ p.last_name }}</td>
+                        <td class="text-right">{{ p.games_played }}</td>
+                        <td class="text-right">{{ p.goals_against_avg ?? '—' }}</td>
+                        <td class="text-right">{{ p.save_percentage != null ? (p.save_percentage * 100).toFixed(1) + '%' : '—' }}</td>
+                        <td class="text-right font-bold text-primary">{{ p.fantasy_points }}</td>
+                        <td class="text-right">
+                          <span v-if="p.drafted_by" class="text-xs text-base-content/40">{{ p.drafted_by.team_name }}</span>
+                          <template v-else-if="currentPick && currentPick.user_id === myUserId && league.is_member">
+                            <button
+                              class="btn btn-xs btn-primary"
+                              :disabled="picking"
+                              @click="pickPlayer(p)"
+                            >
+                              Draft
+                            </button>
+                          </template>
+                          <template v-else>
+                            <button class="btn btn-xs btn-disabled" title="Not your turn" disabled>Draft</button>
+                          </template>
+                        </td>
+                      </tr>
+                      <tr v-if="filteredGoalies.length === 0">
+                        <td colspan="6" class="text-center text-base-content/40 py-4">No goalies found</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
                 <div v-if="pickError" class="text-error text-xs mt-2">{{ pickError }}</div>
               </div>
             </div>
@@ -298,6 +369,17 @@
               required
             />
           </div>
+          <div v-if="league?.is_private" class="form-control">
+            <label class="label"><span class="label-text text-sm">Invite Code</span></label>
+            <input
+              v-model="joinForm.join_code"
+              type="text"
+              placeholder="e.g. X7K2M9"
+              class="input input-bordered input-sm uppercase"
+              maxlength="6"
+              required
+            />
+          </div>
           <div v-if="joinError" class="alert alert-error text-sm py-2">{{ joinError }}</div>
           <div class="modal-action">
             <button type="button" class="btn btn-ghost btn-sm" @click="showJoinModal = false">Cancel</button>
@@ -391,7 +473,7 @@ const tabs = [
 const showJoinModal = ref(false)
 const joining = ref(false)
 const joinError = ref('')
-const joinForm = ref({ team_name: '' })
+const joinForm = ref({ team_name: '', join_code: '' })
 
 const openingDraft = ref(false)
 const startingSeason = ref(false)
@@ -400,6 +482,18 @@ const playerFilter = ref('')
 const positionFilter = ref('')
 const picking = ref(false)
 const pickError = ref('')
+const poolTab = ref('skaters')
+const sortKey = ref('fantasy_ppg')
+const sortDir = ref('desc')
+
+function setSortKey(key) {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortKey.value = key
+    sortDir.value = 'desc'
+  }
+}
 
 const myUserId = computed(() => userStore.predUser?.id)
 
@@ -417,6 +511,35 @@ const filteredPool = computed(() => {
   return allPlayers.filter(p =>
     `${p.first_name} ${p.last_name}`.toLowerCase().includes(q)
   )
+})
+
+const sortedSkaters = computed(() => {
+  const skaters = pool.value.skaters || []
+  const q = playerFilter.value.toLowerCase()
+  const filtered = q
+    ? skaters.filter(p => `${p.first_name} ${p.last_name}`.toLowerCase().includes(q))
+    : skaters
+
+  return [...filtered].sort((a, b) => {
+    let aVal, bVal
+    if (sortKey.value === 'name') {
+      aVal = `${a.first_name} ${a.last_name}`
+      bVal = `${b.first_name} ${b.last_name}`
+      return sortDir.value === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+    }
+    aVal = a[sortKey.value] ?? 0
+    bVal = b[sortKey.value] ?? 0
+    return sortDir.value === 'asc' ? aVal - bVal : bVal - aVal
+  })
+})
+
+const filteredGoalies = computed(() => {
+  const goalies = pool.value.goalies || []
+  const q = playerFilter.value.toLowerCase()
+  const filtered = q
+    ? goalies.filter(p => `${p.first_name} ${p.last_name}`.toLowerCase().includes(q))
+    : goalies
+  return filtered
 })
 
 function statusLabel(s) {
@@ -479,9 +602,13 @@ async function joinLeague() {
   joinError.value = ''
   joining.value = true
   try {
-    await api.post(`/api/fantasy/leagues/${route.params.id}/join`, { team_name: joinForm.value.team_name })
+    const payload = { team_name: joinForm.value.team_name }
+    if (league.value?.is_private && joinForm.value.join_code) {
+      payload.join_code = joinForm.value.join_code.toUpperCase()
+    }
+    await api.post(`/api/fantasy/leagues/${route.params.id}/join`, payload)
     showJoinModal.value = false
-    joinForm.value = { team_name: '' }
+    joinForm.value = { team_name: '', join_code: '' }
     await loadLeague()
   } catch (e) {
     joinError.value = e?.response?.data?.message || 'Failed to join'
@@ -538,6 +665,12 @@ watch(activeTab, (tab) => {
 
 onMounted(async () => {
   await loadLeague()
+  // Pre-fill join code if arriving from private league card
+  const urlCode = route.query.join_code
+  if (urlCode && league.value?.is_private && !league.value?.is_member) {
+    joinForm.value.join_code = String(urlCode).toUpperCase()
+    showJoinModal.value = true
+  }
   if (league.value && !['forming'].includes(league.value.status)) {
     await Promise.all([loadDraftQueue(), loadPool()])
   }

@@ -16,10 +16,11 @@ POST /api/fantasy/leagues/<id>/start   — start season (creator only, require_a
 """
 
 import random
+import string
 from datetime import datetime, timezone
 
 from flask import Blueprint, g, jsonify, request
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 
 from app.auth.jwt_validator import require_auth, optional_auth
 from app.db import HBSession, PredSession
@@ -124,6 +125,12 @@ def create_league():
     if max_managers < 4:
         return error_response("VALIDATION_ERROR", "Not enough players at this level to form a league (need 4+ managers worth of players)", 400)
 
+    # Handle private league + join_code
+    is_private = bool(data.get("is_private", False))
+    join_code = None
+    if is_private:
+        join_code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
     pred = PredSession()
     try:
         league = FantasyLeague(
@@ -138,6 +145,8 @@ def create_league():
             roster_goalies=1,
             draft_pick_hours=data.get("draft_pick_hours", 24),
             created_by=user.id,
+            is_private=is_private,
+            join_code=join_code,
         )
         pred.add(league)
         pred.flush()
@@ -168,6 +177,18 @@ def list_leagues():
     stmt = select(FantasyLeague).order_by(FantasyLeague.created_at.desc())
     if status_filter:
         stmt = stmt.where(FantasyLeague.status == status_filter)
+
+    # Filter: only show public leagues OR leagues where user is a member
+    if g.pred_user:
+        member_league_ids = select(FantasyManager.league_id).where(FantasyManager.user_id == g.pred_user.id)
+        stmt = stmt.where(
+            or_(
+                FantasyLeague.is_private == False,  # noqa: E712
+                FantasyLeague.id.in_(member_league_ids),
+            )
+        )
+    else:
+        stmt = stmt.where(FantasyLeague.is_private == False)  # noqa: E712
 
     leagues = pred.execute(stmt).scalars().all()
 
@@ -254,6 +275,14 @@ def join_league(league_id: int):
     if league.status != "forming":
         return error_response("CONFLICT", "League is no longer accepting managers", 409)
 
+    # Validate join_code for private leagues
+    if league.is_private:
+        submitted_code = (data.get("join_code") or "").strip().upper()
+        if not submitted_code:
+            return error_response("VALIDATION_ERROR", "join_code is required for private leagues", 400)
+        if submitted_code != (league.join_code or "").upper():
+            return error_response("FORBIDDEN", "Invalid join code", 403)
+
     # Check already joined
     existing = pred.execute(
         select(FantasyManager).where(
@@ -297,23 +326,54 @@ def get_pool(league_id: int):
 
     from app.services.fantasy_pool_service import get_player_pool
     try:
-        pool = get_player_pool(league.level_id)
+        pool = get_player_pool(league.level_id, org_id=league.org_id)
     except Exception as e:
         return error_response("INTERNAL_ERROR", str(e), 500)
 
-    # Filter out already drafted players
-    drafted_ids = set(
-        pred.execute(
-            select(FantasyRoster.hb_human_id).where(FantasyRoster.league_id == league_id)
-        ).scalars().all()
-    )
+    # Query who drafted which players in this league
+    roster_rows = pred.execute(
+        select(FantasyRoster.hb_human_id, FantasyRoster.user_id)
+        .where(FantasyRoster.league_id == league_id)
+    ).all()
 
-    available_skaters = [p for p in pool["skaters"] if p["hb_human_id"] not in drafted_ids]
-    available_goalies = [p for p in pool["goalies"] if p["hb_human_id"] not in drafted_ids]
+    # Build drafted map: hb_human_id -> user_id
+    drafted_map = {row.hb_human_id: row.user_id for row in roster_rows}
+    drafted_ids = set(drafted_map.keys())
+
+    # Build manager team name map
+    mgr_rows = pred.execute(
+        select(FantasyManager.user_id, FantasyManager.team_name)
+        .where(FantasyManager.league_id == league_id)
+    ).all()
+    mgr_team_map = {row.user_id: row.team_name for row in mgr_rows}
+
+    def enrich_drafted(player):
+        hid = player["hb_human_id"]
+        if hid in drafted_map:
+            uid = drafted_map[hid]
+            player["drafted_by"] = {"user_id": uid, "team_name": mgr_team_map.get(uid)}
+        else:
+            player["drafted_by"] = None
+        return player
+
+    # Apply type filter
+    type_filter = request.args.get("type", "").lower()
+
+    all_skaters = [enrich_drafted(p) for p in pool["skaters"]]
+    all_goalies = [enrich_drafted(p) for p in pool["goalies"]]
+
+    # Sort: skaters by fantasy_ppg DESC, goalies by fantasy_points DESC
+    all_skaters.sort(key=lambda p: p.get("fantasy_ppg", 0), reverse=True)
+    all_goalies.sort(key=lambda p: p.get("fantasy_points", 0), reverse=True)
+
+    if type_filter == "skaters":
+        return jsonify({"skaters": all_skaters, "goalies": []})
+    elif type_filter == "goalies":
+        return jsonify({"skaters": [], "goalies": all_goalies})
 
     return jsonify({
-        "skaters": available_skaters,
-        "goalies": available_goalies,
+        "skaters": all_skaters,
+        "goalies": all_goalies,
     })
 
 
