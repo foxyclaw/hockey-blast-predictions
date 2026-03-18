@@ -132,16 +132,6 @@ def create_pick():
 
     game_id = data["game_id"]
     picked_team_id = data["picked_team_id"]
-
-    # If no league_id provided, auto-join the global default league
-    league_id = data.get("league_id")
-    if not league_id:
-        league_id = _get_or_create_global_league(user, pred_session)
-
-    import logging
-    logging.getLogger(__name__).info(
-        f"[Pick] user={user.id} game={game_id} team={picked_team_id} league={league_id} confidence={data.get('confidence', 1)}"
-    )
     confidence = data.get("confidence", 1)
     wager = data.get("wager", None)
 
@@ -154,6 +144,16 @@ def create_pick():
 
     pred_session = PredSession()
     user = g.pred_user
+
+    # If no league_id provided, auto-join the global default league
+    league_id = data.get("league_id")
+    if not league_id:
+        league_id = _get_or_create_global_league(user, pred_session)
+
+    import logging
+    logging.getLogger(__name__).info(
+        f"[Pick] user={user.id} game={game_id} team={picked_team_id} league={league_id} confidence={confidence}"
+    )
 
     try:
         pick = submit_pick(
