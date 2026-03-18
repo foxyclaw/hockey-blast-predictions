@@ -8,7 +8,7 @@ export const useUserStore = defineStore('user', () => {
   const error = ref(null)
   let _cachedToken = null
 
-  const balance = computed(() => predUser.value?.balance ?? 1000)
+  const balance = computed(() => predUser.value?.balance ?? 0)
   const displayName = computed(() => predUser.value?.display_name ?? '')
 
   // Name is "missing" if it contains no space (e.g. just an email or single word)

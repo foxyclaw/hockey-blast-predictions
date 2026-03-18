@@ -13,12 +13,12 @@
             Games
           </RouterLink>
         </li>
-        <li v-if="isAuthenticated">
+        <li v-if="isFullyAuthenticated">
           <RouterLink to="/picks" class="rounded-lg text-sm font-medium" active-class="bg-primary/20 text-primary">
             My Picks
           </RouterLink>
         </li>
-        <li v-if="isAuthenticated">
+        <li v-if="isFullyAuthenticated">
           <RouterLink to="/leagues" class="rounded-lg text-sm font-medium" active-class="bg-primary/20 text-primary">
             Leagues
           </RouterLink>
@@ -33,12 +33,12 @@
 
     <div class="navbar-end gap-2">
       <!-- Balance badge -->
-      <div v-if="isAuthenticated && !isLoading" class="badge badge-outline badge-primary font-mono text-xs hidden sm:flex">
+      <div v-if="isFullyAuthenticated && !isLoading" class="badge badge-outline badge-primary font-mono text-xs hidden sm:flex">
         💰 {{ balance.toLocaleString() }} pts
       </div>
 
       <!-- Notification bell (authenticated users only) -->
-      <div v-if="isAuthenticated && !isLoading" class="relative">
+      <div v-if="isFullyAuthenticated && !isLoading" class="relative">
         <button @click="toggleNotifications" class="btn btn-ghost btn-circle btn-sm relative">
           <span class="text-lg">🔔</span>
           <span
@@ -80,7 +80,7 @@
       <div v-if="isLoading">
         <span class="loading loading-spinner loading-sm text-primary"></span>
       </div>
-      <div v-else-if="isAuthenticated" class="dropdown dropdown-end">
+      <div v-else-if="isFullyAuthenticated" class="dropdown dropdown-end">
         <div tabindex="0" role="button" class="btn btn-ghost btn-circle avatar">
           <div class="w-9 rounded-full ring ring-primary ring-offset-base-100 ring-offset-1">
             <img v-if="user?.picture" :src="user.picture" :alt="user.name" />
@@ -119,8 +119,8 @@
         </label>
         <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-200 rounded-box w-52">
           <li><RouterLink to="/">Games</RouterLink></li>
-          <li v-if="isAuthenticated"><RouterLink to="/picks">My Picks</RouterLink></li>
-          <li v-if="isAuthenticated"><RouterLink to="/leagues">Leagues</RouterLink></li>
+          <li v-if="isFullyAuthenticated"><RouterLink to="/picks">My Picks</RouterLink></li>
+          <li v-if="isFullyAuthenticated"><RouterLink to="/leagues">Leagues</RouterLink></li>
           <li><RouterLink to="/free-agents">Free Agents</RouterLink></li>
         </ul>
       </div>
@@ -137,6 +137,8 @@ import { useApiClient } from '@/api/client'
 
 const { isAuthenticated, isLoading, user, loginWithRedirect, logout } = useAuth0()
 const userStore = useUserStore()
+// Only treat as truly logged in if Auth0 says so AND the backend confirmed the token
+const isFullyAuthenticated = computed(() => isAuthenticated.value && userStore.predUser !== null)
 const router = useRouter()
 const loginInProgress = ref(false)
 
