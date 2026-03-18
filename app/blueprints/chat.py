@@ -11,7 +11,9 @@ import logging
 import os
 
 from flask import Blueprint, g, jsonify, request
-from app.auth.jwt_validator import require_auth
+from app.auth.jwt_validator import require_auth, optional_auth
+
+ANONYMOUS_USER_ID = 0
 from app.db import PredSession
 from app.models.chat_message import ChatMessage
 from app.models.chat_feedback import ChatFeedback
@@ -23,7 +25,7 @@ chat_bp = Blueprint("chat", __name__)
 
 
 @chat_bp.post("/api/chat/message")
-@require_auth
+@optional_auth
 def send_message():
     """
     Process a chat query.
@@ -39,20 +41,20 @@ def send_message():
     if not query:
         return jsonify({"error": "query is required"}), 400
 
-    user = g.pred_user
+    user_id = g.pred_user.id if g.pred_user else ANONYMOUS_USER_ID
     db = PredSession()
 
     # 1. Check if user is currently banned
-    status = check_user_allowed(user.id, db)
+    status = check_user_allowed(user_id, db)
     if not status["allowed"]:
         return jsonify({"error": "CHAT_DISABLED", "message": status["message"]}), 403
 
     # 2. Topic guard
     if not is_hockey_question(query):
-        violation = record_violation(user.id, query, db)
+        violation = record_violation(user_id, query, db)
         # Log the off-topic attempt
         msg = ChatMessage(
-            user_id=user.id,
+            user_id=user_id,
             session_id=session_id,
             query=query,
             answer=violation["message"],
@@ -78,7 +80,7 @@ def send_message():
         # Fetch last 10 non-off-topic messages for context, capped at ~8000 chars total
         recent = (
             db.query(ChatMessage)
-            .filter_by(user_id=user.id, is_off_topic=False)
+            .filter_by(user_id=user_id, is_off_topic=False)
             .order_by(ChatMessage.created_at.desc())
             .limit(10)
             .all()
@@ -100,7 +102,7 @@ def send_message():
 
     # 4. Save the message
     msg = ChatMessage(
-        user_id=user.id,
+        user_id=user_id,
         session_id=session_id,
         query=query,
         answer=result["answer"],
@@ -122,7 +124,7 @@ def send_message():
 
 
 @chat_bp.post("/api/chat/feedback/<int:message_id>")
-@require_auth
+@optional_auth
 def submit_feedback(message_id: int):
     """Like or dislike a chat answer, with optional comment."""
     data = request.get_json(silent=True) or {}
@@ -132,14 +134,16 @@ def submit_feedback(message_id: int):
     if rating not in ("like", "dislike"):
         return jsonify({"error": "rating must be 'like' or 'dislike'"}), 400
 
+    user_id = g.pred_user.id if g.pred_user else ANONYMOUS_USER_ID
     db = PredSession()
-    msg = db.query(ChatMessage).filter_by(id=message_id, user_id=g.pred_user.id).first()
+    # Match message by id only (anonymous users share user_id=0 so don't filter by user)
+    msg = db.query(ChatMessage).filter_by(id=message_id).first()
     if not msg:
         return jsonify({"error": "Message not found"}), 404
 
-    # Upsert feedback (one rating per user per message)
+    # Upsert feedback
     existing = db.query(ChatFeedback).filter_by(
-        message_id=message_id, user_id=g.pred_user.id
+        message_id=message_id, user_id=user_id
     ).first()
     if existing:
         existing.rating = rating
@@ -147,7 +151,7 @@ def submit_feedback(message_id: int):
     else:
         fb = ChatFeedback(
             message_id=message_id,
-            user_id=g.pred_user.id,
+            user_id=user_id,
             rating=rating,
             comment=comment,
         )
