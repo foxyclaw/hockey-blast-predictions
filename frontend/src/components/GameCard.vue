@@ -8,7 +8,7 @@
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div>
           <div class="text-xs text-base-content/50 uppercase tracking-wider">
-            {{ game.org?.name ?? 'Unknown Org' }}<span v-if="game.division?.name" class="text-base-content/30 normal-case"> · {{ game.division.name }}</span>
+            {{ game.org?.name ?? 'Unknown Org' }}<span v-if="game.division?.short_name" class="text-base-content/30 normal-case"> · {{ game.division.short_name }}</span>
           </div>
         </div>
         <div class="flex items-center gap-2">

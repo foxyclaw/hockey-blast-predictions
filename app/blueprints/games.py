@@ -98,11 +98,21 @@ def _get_division(division_id: int | None, hb_session) -> dict | None:
     if not division_id:
         return None
     try:
-        from hockey_blast_common_lib.models import Division
-        stmt = select(Division).where(Division.id == division_id)
-        div = hb_session.execute(stmt).scalar_one_or_none()
-        if div:
-            return {"id": div.id, "name": div.name}
+        from hockey_blast_common_lib.models import Division, Level
+        div = hb_session.execute(select(Division).where(Division.id == division_id)).scalar_one_or_none()
+        if not div:
+            return None
+        # Prefer Level.short_name (e.g. "4B", "O35"), fall back to div.level
+        short_name = None
+        if div.level_id:
+            lvl = hb_session.execute(select(Level).where(Level.id == div.level_id)).scalar_one_or_none()
+            if lvl:
+                short_name = lvl.short_name or lvl.level_name
+        return {
+            "id": div.id,
+            "name": div.level,          # full name e.g. "Adult Division 4B"
+            "short_name": short_name or div.level,  # e.g. "4B"
+        }
     except Exception:
         pass
     return None
