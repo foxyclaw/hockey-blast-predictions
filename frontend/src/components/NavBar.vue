@@ -199,7 +199,7 @@ function openNotification(n) {
   unreadCount.value = Math.max(0, unreadCount.value - 1)
   showNotifications.value = false
   if (n.link) {
-    setTimeout(() => router.push(n.link), 50)
+    setTimeout(() => router.push(n.link), 100)
   }
 }
 

@@ -200,17 +200,35 @@ def list_leagues():
         d = league.to_dict()
         d["manager_count"] = mgr_count
 
-        # Is current user a member?
+        # Is current user a member? Is it their turn to draft?
         if g.pred_user:
-            is_member = pred.execute(
+            mgr = pred.execute(
                 select(FantasyManager).where(
                     FantasyManager.league_id == league.id,
                     FantasyManager.user_id == g.pred_user.id,
                 )
-            ).scalar_one_or_none() is not None
-            d["is_member"] = is_member
+            ).scalar_one_or_none()
+            d["is_member"] = mgr is not None
+
+            # Check if it's the user's turn in the draft
+            is_your_turn = False
+            if mgr and league.status in ("drafting", "draft_open"):
+                from app.models.fantasy_draft_queue import FantasyDraftQueue
+                current_pick = pred.execute(
+                    select(FantasyDraftQueue)
+                    .where(
+                        FantasyDraftQueue.league_id == league.id,
+                        FantasyDraftQueue.hb_human_id.is_(None),
+                        FantasyDraftQueue.is_skipped == False,  # noqa: E712
+                    )
+                    .order_by(FantasyDraftQueue.overall_pick.asc())
+                    .limit(1)
+                ).scalar_one_or_none()
+                is_your_turn = current_pick is not None and current_pick.user_id == g.pred_user.id
+            d["is_your_turn"] = is_your_turn
         else:
             d["is_member"] = False
+            d["is_your_turn"] = False
 
         result.append(d)
 
