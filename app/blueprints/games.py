@@ -64,7 +64,7 @@ def _serialize_game(game, hb_session, pred_user=None, pred_session=None) -> dict
             "name": home_team.name if home_team else str(game.home_team_id),
             "avg_skill": home_skill,
         },
-        "visitor_team": {
+        "away_team": {
             "id": game.visitor_team_id,
             "name": visitor_team.name if visitor_team else str(game.visitor_team_id),
             "avg_skill": visitor_skill,
