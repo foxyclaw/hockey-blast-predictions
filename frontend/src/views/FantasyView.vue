@@ -48,7 +48,8 @@
               </div>
               <div class="flex items-center gap-4 mt-3 text-xs text-base-content/60">
                 <span>👥 {{ league.manager_count }} / {{ league.max_managers }} managers</span>
-                <span v-if="league.is_member" class="badge badge-xs badge-success">Joined</span>
+                <span v-if="league.is_your_turn" class="badge badge-xs badge-warning animate-pulse">⚡ Your Turn!</span>
+                <span v-else-if="league.is_member" class="badge badge-xs badge-success">Joined</span>
               </div>
               <!-- Join button / code input for non-members in forming status -->
               <div v-if="!league.is_member && league.status === 'forming'" class="mt-3">
