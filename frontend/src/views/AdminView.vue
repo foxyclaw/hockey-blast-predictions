@@ -223,8 +223,10 @@
 
           <div class="flex flex-wrap gap-3 mb-4 items-end">
             <div class="form-control">
-              <label class="label py-1"><span class="label-text text-xs">Org ID</span></label>
-              <input v-model.number="launchOrgId" type="number" class="input input-bordered input-sm w-24" min="1" />
+              <label class="label py-1"><span class="label-text text-xs">Organization</span></label>
+              <select v-model.number="launchOrgId" class="select select-bordered select-sm w-48">
+                <option v-for="org in orgs" :key="org.id" :value="org.id">{{ org.name }}</option>
+              </select>
             </div>
             <div class="form-control">
               <label class="label py-1"><span class="label-text text-xs">Season Start Date</span></label>
@@ -400,10 +402,22 @@ watch(activeTab, (tab) => {
   if (tab === 'pending') loadPendingClaims()
   else if (tab === 'all-claims') loadAllClaims()
   else if (tab === 'users') loadUsers()
+  else if (tab === 'launch') loadOrgs()
 })
 
 // ── Launch Fantasy Season ──────────────────────────────────────────────────
+const orgs = ref([])
 const launchOrgId = ref(1)
+
+async function loadOrgs() {
+  try {
+    const { data } = await api.get('/api/admin/fantasy/orgs')
+    orgs.value = data.orgs
+    if (orgs.value.length && !orgs.value.find(o => o.id === launchOrgId.value)) {
+      launchOrgId.value = orgs.value[0].id
+    }
+  } catch { /* ignore */ }
+}
 const launchStartDate = ref('')
 const launchActiveOnly = ref(true)
 const levels = ref([])

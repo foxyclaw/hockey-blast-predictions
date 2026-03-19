@@ -241,6 +241,24 @@ def get_active_levels():
     return jsonify({"levels": levels})
 
 
+@admin_bp.route("/fantasy/orgs", methods=["GET"])
+@require_admin
+def get_fantasy_orgs():
+    """GET /api/admin/fantasy/orgs — list all orgs for the org selector."""
+    from sqlalchemy import select
+    from hockey_blast_common_lib.models import Organization
+    from app.db import HBSession
+
+    hb = HBSession()
+    orgs = hb.execute(
+        select(Organization.id, Organization.organization_name)
+        .where(Organization.id > 0)
+        .order_by(Organization.id)
+    ).all()
+
+    return jsonify({"orgs": [{"id": o.id, "name": o.organization_name} for o in orgs]})
+
+
 @admin_bp.route("/fantasy/launch-season", methods=["POST"])
 @require_admin
 def launch_fantasy_season():
