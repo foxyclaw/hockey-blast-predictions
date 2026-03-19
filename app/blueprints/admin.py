@@ -200,7 +200,7 @@ def get_active_levels():
     """
     GET /api/admin/fantasy/active-levels?org_id=1&active_only=true
     Returns levels that have recent/active season dates.
-    active_only=true (default): end_date >= today - 30 days
+    active_only=true (default): end_date >= today - 180 days
     """
     from datetime import date, timedelta
     from sqlalchemy import select, distinct as sa_distinct
@@ -226,7 +226,7 @@ def get_active_levels():
     )
 
     if active_only:
-        cutoff = date.today() - timedelta(days=30)
+        cutoff = date.today() - timedelta(days=180)
         stmt = stmt.where(OrgLeagueSeasonDates.end_date >= cutoff)
 
     rows = hb.execute(stmt).all()
