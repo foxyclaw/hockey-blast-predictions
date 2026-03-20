@@ -318,11 +318,14 @@ async function scrollToBottom() {
 .chat-messages {
   scrollbar-width: thin;
 }
-/* Mobile: full width */
-@media (max-width: 400px) {
+/* Mobile: anchor panel to viewport */
+@media (max-width: 640px) {
   .chat-panel {
+    position: fixed;
     width: calc(100vw - 16px);
-    right: -8px;
+    left: 8px;
+    right: 8px;
+    bottom: 90px;
   }
 }
 .chat-slide-enter-active, .chat-slide-leave-active {
