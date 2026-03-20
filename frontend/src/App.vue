@@ -18,7 +18,7 @@
         <RouterView />
       </main>
       <footer class="footer footer-center p-4 bg-base-300 text-base-content text-xs opacity-60">
-        <span>🏒 Hockey Blast Predictions · Not gambling · Just fun</span>
+        <span>🏒 Hockey Blast Sportsbook · Not gambling · Just fun</span>
       </footer>
       <ChatWidget />
     </template>
