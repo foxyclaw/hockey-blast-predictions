@@ -89,8 +89,8 @@ const matchupLabel = computed(() => {
   const v = props.game.away_team?.avg_skill
   if (h == null || v == null) return null
   const diff = Math.abs(h - v)
-  if (diff < 5) return '≈ Even'
-  if (diff < 15) return h < v ? '← Edge' : 'Edge →'
+  if (diff < 2) return '≈ Even'
+  if (diff < 10) return h < v ? '← Edge' : 'Edge →'
   return h < v ? '← Favored' : 'Favored →'
 })
 
