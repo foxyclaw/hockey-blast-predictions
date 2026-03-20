@@ -4,8 +4,8 @@
       <RouterLink to="/" class="btn btn-ghost text-xl font-bold tracking-tight">
         🏒 <span class="text-primary">HB</span><span class="text-base-content/80">Picks</span>
       </RouterLink>
-      <span class="text-base-content/20 hidden sm:flex">|</span>
-      <a href="https://hockey-blast.com" class="btn btn-ghost text-xl font-bold tracking-tight hidden sm:flex">
+      <span class="text-base-content/20">|</span>
+      <a href="https://hockey-blast.com" class="btn btn-ghost font-bold tracking-tight text-sm sm:text-xl">
         🏒 <span class="text-base-content/30">HB</span><span class="text-base-content/20">Stats</span>
       </a>
     </div>
