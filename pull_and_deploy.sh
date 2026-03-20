@@ -1,6 +1,6 @@
 #!/bin/bash
-# deploy.sh — pull latest code, rebuild frontend if needed, restart service
-# Usage: ./deploy.sh
+# pull_and_deploy.sh — pull latest code, rebuild frontend if needed, restart service
+# Usage: ./pull_and_deploy.sh
 
 set -e
 
