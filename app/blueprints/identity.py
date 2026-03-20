@@ -391,7 +391,7 @@ def confirm_identity():
         claim = PredUserHbClaim(
             user_id=user.id,
             hb_human_id=hid,
-            source="self_reported",
+            source="manual_search" if force_pending else "self_reported",
             is_primary=is_primary and claim_status == "confirmed",
             profile_snapshot=snapshot,
             claim_status=claim_status,
@@ -466,7 +466,10 @@ def my_claims():
 
     pred_session = PredSession()
     claims = pred_session.execute(
-        select(PredUserHbClaim).where(PredUserHbClaim.user_id == g.pred_user.id)
+        select(PredUserHbClaim).where(
+            PredUserHbClaim.user_id == g.pred_user.id,
+            PredUserHbClaim.claim_status != "rejected",
+        )
     ).scalars().all()
 
     return jsonify({
@@ -474,6 +477,7 @@ def my_claims():
             {
                 "hb_human_id": c.hb_human_id,
                 "is_primary": c.is_primary,
+                "claim_status": c.claim_status,
                 "source": c.source,
                 "claimed_at": c.claimed_at.isoformat() if c.claimed_at else None,
                 "profile": c.profile_snapshot,
