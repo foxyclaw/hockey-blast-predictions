@@ -20,10 +20,10 @@ _started = False
 _lock = threading.Lock()
 
 
-def track(event_type: str, user_id: int | None = None) -> None:
+def track(event_type: str, user_id: int | None = None, ip_address: str | None = None) -> None:
     """Enqueue an event. Never blocks, never raises."""
     try:
-        _q.put_nowait({"event_type": event_type, "user_id": user_id})
+        _q.put_nowait({"event_type": event_type, "user_id": user_id, "ip_address": ip_address})
     except queue.Full:
         pass  # Drop silently — tracking is best-effort
 
@@ -48,7 +48,7 @@ def _drain(app) -> None:
                     try:
                         now = datetime.now(timezone.utc)
                         session.bulk_insert_mappings(SiteEvent, [
-                            {"event_type": e["event_type"], "user_id": e["user_id"], "created_at": now}
+                            {"event_type": e["event_type"], "user_id": e["user_id"], "ip_address": e.get("ip_address"), "created_at": now}
                             for e in batch
                         ])
                         session.commit()

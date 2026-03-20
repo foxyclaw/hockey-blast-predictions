@@ -543,7 +543,7 @@ def analytics():
             cast(SiteEvent.created_at, Date).label("day"),
             SiteEvent.event_type,
             func.count(SiteEvent.id).label("count"),
-            func.count(func.distinct(SiteEvent.user_id)).label("unique_users"),
+            func.count(func.distinct(SiteEvent.ip_address)).label("unique_ips"),
         )
         .where(SiteEvent.created_at >= sa.func.now() - sa.text(f"interval '{days} days'"))
         .group_by("day", SiteEvent.event_type)
