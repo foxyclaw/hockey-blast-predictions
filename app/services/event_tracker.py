@@ -46,11 +46,13 @@ def _drain(app) -> None:
                 with app.app_context():
                     session = PredSession()
                     try:
+                        from sqlalchemy import insert
                         now = datetime.now(timezone.utc)
-                        session.bulk_insert_mappings(SiteEvent, [
-                            {"event_type": e["event_type"], "user_id": e["user_id"], "ip_address": e.get("ip_address"), "created_at": now}
-                            for e in batch
-                        ])
+                        session.execute(
+                            insert(SiteEvent),
+                            [{"event_type": e["event_type"], "user_id": e["user_id"], "ip_address": e.get("ip_address"), "created_at": now}
+                             for e in batch]
+                        )
                         session.commit()
                     except Exception as exc:
                         logger.warning("[tracker] DB flush failed: %s", exc)
