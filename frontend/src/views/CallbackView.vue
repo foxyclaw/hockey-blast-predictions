@@ -1,10 +1,18 @@
 <template>
-  <div class="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+  <div class="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4 text-center">
     <span v-if="!authError" class="loading loading-spinner loading-lg text-primary"></span>
-    <p class="text-base-content/60 text-sm">{{ authError ? '⚠️ Login failed' : 'Signing you in…' }}</p>
-    <div v-if="authError" class="alert alert-error max-w-lg text-sm">{{ authError }}</div>
-    <div v-if="authError" class="text-xs text-base-content/50">{{ authErrorDetail }}</div>
-    <a v-if="authError" href="/" class="btn btn-sm btn-ghost mt-2">← Go back</a>
+    <p v-if="!authError" class="text-base-content/60 text-sm">Signing you in…</p>
+
+    <template v-if="authError">
+      <div class="text-4xl">📧</div>
+      <h2 class="text-xl font-bold">Check your email</h2>
+      <p class="text-base-content/70 max-w-sm">
+        We sent a verification link to your email address.<br>
+        Click it to activate your account, then try signing in again.
+      </p>
+      <p class="text-xs text-base-content/40">Didn't get it? Check your spam folder.</p>
+      <a href="/" class="btn btn-primary mt-2">← Back to Sign In</a>
+    </template>
   </div>
 </template>
 
