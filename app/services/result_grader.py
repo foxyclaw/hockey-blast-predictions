@@ -25,6 +25,57 @@ VOID_STATUSES = frozenset({"Forfeit", "FORFEIT", "CANCELED", "NOEVENTS"})
 UPSET_SCALE = 0.5
 
 
+def _auto_lock_picks(pred_session) -> int:
+    """
+    Lock any unlocked picks whose game has already started or is no longer Scheduled.
+    Returns the number of picks locked.
+    """
+    from hockey_blast_common_lib.models import Game
+
+    # Find all unlocked, ungraded picks
+    stmt = (
+        select(PredPick)
+        .outerjoin(PredResult, PredPick.id == PredResult.pick_id)
+        .where(PredResult.id.is_(None), PredPick.is_locked == False)  # noqa: E712
+    )
+    unlocked_picks = pred_session.execute(stmt).scalars().all()
+    if not unlocked_picks:
+        return 0
+
+    game_ids = {p.game_id for p in unlocked_picks}
+    hb_session = HBSession()
+    games = {g.id: g for g in hb_session.execute(select(Game).where(Game.id.in_(game_ids))).scalars().all()}
+
+    now = datetime.now()
+    locked = 0
+    for pick in unlocked_picks:
+        game = games.get(pick.game_id)
+        if game is None:
+            continue
+        status = getattr(game, "status", None)
+        # Lock if game is no longer Scheduled (live, final, voided, etc.)
+        if status != "Scheduled":
+            pick.is_locked = True
+            locked += 1
+            continue
+        # Lock if game start time has passed
+        game_date = getattr(game, "date", None)
+        game_time = getattr(game, "time", None)
+        if game_date is not None:
+            if game_time is not None:
+                start_dt = datetime.combine(game_date, game_time)
+            else:
+                start_dt = datetime(game_date.year, game_date.month, game_date.day)
+            if now >= start_dt:
+                pick.is_locked = True
+                locked += 1
+
+    if locked:
+        pred_session.flush()
+        logger.info("[grader] Auto-locked %d picks", locked)
+    return locked
+
+
 def grade_completed_games() -> dict:
     """
     Main entry point for the background grader.
@@ -36,6 +87,9 @@ def grade_completed_games() -> dict:
     """
     pred_session = PredSession()
     summary = {"graded": 0, "skipped": 0, "errors": 0}
+
+    # Auto-lock picks for games that have already started/finished
+    _auto_lock_picks(pred_session)
 
     # Find locked picks with no result yet
     stmt = (
