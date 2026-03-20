@@ -28,6 +28,11 @@
       </button>
       <button
         class="tab"
+        :class="{ 'tab-active': activeTab === 'chat' }"
+        @click="activeTab = 'chat'; loadChatQuestions()"
+      >💬 Chat Questions</div>
+      <div
+        class="tab"
         :class="{ 'tab-active': activeTab === 'launch' }"
         @click="activeTab = 'launch'"
       >
@@ -206,6 +211,32 @@
     </div>
 
     <!-- ── Launch Season tab ──────────────────────────────────────────────── -->
+    <!-- ── Chat Questions ─────────────────────────────────────────────────── -->
+    <div v-if="activeTab === 'chat'">
+      <div v-if="chatLoading" class="flex justify-center py-12">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+      </div>
+      <div v-else-if="chatQuestions.length === 0" class="text-center py-12 text-base-content/50">
+        No questions yet.
+      </div>
+      <div v-else class="space-y-2">
+        <div class="text-xs text-base-content/40 mb-3">{{ chatQuestions.length }} most recent questions</div>
+        <div
+          v-for="q in chatQuestions"
+          :key="q.id"
+          class="flex items-start gap-3 rounded-xl bg-base-200 px-4 py-3"
+        >
+          <div class="flex-1 min-w-0">
+            <div class="text-sm">{{ q.query }}</div>
+            <div class="text-xs text-base-content/40 mt-1">
+              {{ q.user }} · {{ formatDate(q.created_at) }}
+              <span v-if="q.is_off_topic" class="badge badge-xs badge-warning ml-1">off-topic</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div v-if="activeTab === 'launch'">
       <div class="card bg-base-200 shadow-md">
         <div class="card-body p-4">
@@ -349,6 +380,21 @@ const api = useApiClient()
 
 const isSuperAdmin = computed(() => userStore.predUser?.id === 17)
 const activeTab = ref('pending')
+
+const chatQuestions = ref([])
+const chatLoading = ref(false)
+async function loadChatQuestions() {
+  if (chatQuestions.value.length) return
+  chatLoading.value = true
+  try {
+    const { data } = await api.get('/api/admin/chat/questions?limit=200')
+    chatQuestions.value = data.questions || []
+  } catch (e) {
+    console.error('Failed to load chat questions', e)
+  } finally {
+    chatLoading.value = false
+  }
+}
 
 // ── Pending Claims ───────────────────────────────────────────────────────────
 const pendingClaims = ref([])
