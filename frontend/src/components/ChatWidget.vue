@@ -318,7 +318,7 @@ async function scrollToBottom() {
 .chat-messages {
   scrollbar-width: thin;
 }
-/* Mobile: anchor panel to viewport */
+/* Mobile: anchor panel to viewport + prevent iOS auto-zoom on input focus */
 @media (max-width: 640px) {
   .chat-panel {
     position: fixed;
@@ -326,6 +326,9 @@ async function scrollToBottom() {
     left: 8px;
     right: 8px;
     bottom: 90px;
+  }
+  .chat-panel input, .chat-panel textarea {
+    font-size: 16px !important;
   }
 }
 .chat-slide-enter-active, .chat-slide-leave-active {
