@@ -24,7 +24,7 @@
           </div>
           <button
             @click="maximized = !maximized"
-            class="btn btn-ghost btn-xs btn-circle text-primary-content opacity-80 hover:opacity-100"
+            class="btn btn-ghost btn-xs btn-circle text-primary-content opacity-80 hover:opacity-100 hidden sm:flex"
             :title="maximized ? 'Minimize' : 'Maximize'"
           >
             <span v-if="maximized">⊙</span>
