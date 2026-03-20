@@ -493,3 +493,36 @@ def batch_delete_fantasy_leagues():
     pred.commit()
 
     return jsonify({"ok": True, "deleted": len(names), "names": names})
+
+
+@admin_bp.route("/chat/questions", methods=["GET"])
+@require_admin
+def chat_questions():
+    """GET /api/admin/chat/questions — recent chat queries, no answers."""
+    from app.models.chat_message import ChatMessage
+    from app.models.pred_user import PredUser
+
+    limit = min(int(request.args.get("limit", 100)), 500)
+    pred_session = PredSession()
+
+    messages = pred_session.execute(
+        select(ChatMessage)
+        .order_by(ChatMessage.created_at.desc())
+        .limit(limit)
+    ).scalars().all()
+
+    result = []
+    user_cache = {}
+    for m in messages:
+        if m.user_id not in user_cache:
+            u = pred_session.get(PredUser, m.user_id)
+            user_cache[m.user_id] = u.display_name if u else f"user#{m.user_id}"
+        result.append({
+            "id": m.id,
+            "user": user_cache[m.user_id],
+            "query": m.query,
+            "is_off_topic": m.is_off_topic,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        })
+
+    return jsonify({"questions": result, "count": len(result)})
