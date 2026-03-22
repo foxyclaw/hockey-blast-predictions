@@ -627,6 +627,57 @@ def list_fantasy_leagues():
     return jsonify({"leagues": [l.to_dict() for l in leagues]})
 
 
+@admin_bp.route("/fantasy/leagues/<int:league_id>", methods=["PATCH"])
+@require_admin
+def update_fantasy_league(league_id: int):
+    """PATCH /api/admin/fantasy/leagues/<id> — update editable fields on a league."""
+    from app.models.fantasy_league import FantasyLeague
+    from app.db import PredSession
+    from datetime import datetime, timezone as _tz
+
+    def _parse_dt(val):
+        if val is None:
+            return "UNSET"   # sentinel: caller wants to clear the field
+        if val == "":
+            return "UNSET"
+        for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(val, fmt).replace(tzinfo=_tz.utc)
+            except ValueError:
+                continue
+        return None  # unparseable — skip
+
+    data = request.get_json(silent=True) or {}
+    pred = PredSession()
+    league = pred.get(FantasyLeague, league_id)
+    if not league:
+        return jsonify({"error": "NOT_FOUND", "message": "League not found"}), 404
+
+    EDITABLE = ("season_starts_at", "draft_opens_at", "draft_closes_at", "season_label", "name")
+    DATETIME_FIELDS = {"season_starts_at", "draft_opens_at", "draft_closes_at"}
+
+    for field in EDITABLE:
+        if field not in data:
+            continue
+        if field in DATETIME_FIELDS:
+            parsed = _parse_dt(data[field])
+            if parsed == "UNSET":
+                setattr(league, field, None)
+            elif parsed is not None:
+                setattr(league, field, parsed)
+        else:
+            setattr(league, field, data[field] or None)
+
+    try:
+        pred.commit()
+        pred.refresh(league)
+    except Exception as e:
+        pred.rollback()
+        return jsonify({"error": "INTERNAL_ERROR", "message": str(e)}), 500
+
+    return jsonify(league.to_dict())
+
+
 @admin_bp.route("/fantasy/leagues/<int:league_id>", methods=["DELETE"])
 @require_admin
 def delete_fantasy_league(league_id: int):

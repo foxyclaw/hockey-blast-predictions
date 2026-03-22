@@ -403,21 +403,58 @@
                   <th>Level</th>
                   <th>Status</th>
                   <th>Managers</th>
-                  <th>Season Starts</th>
+                  <th>Season Start</th>
+                  <th>Draft Opens</th>
+                  <th>Draft Closes</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="l in adminLeagues" :key="l.id" class="hover">
-                  <td>
-                    <input type="checkbox" class="checkbox checkbox-xs"
-                      :value="l.id" v-model="selectedLeagueIds" />
-                  </td>
-                  <td class="font-medium">{{ l.name }}</td>
-                  <td>{{ l.level_name }}</td>
-                  <td><span class="badge badge-xs" :class="statusBadgeClass(l.status)">{{ l.status }}</span></td>
-                  <td>{{ l.manager_count ?? '—' }}</td>
-                  <td class="text-xs">{{ l.season_starts_at ? new Date(l.season_starts_at).toLocaleDateString() : '—' }}</td>
-                </tr>
+                <template v-for="l in adminLeagues" :key="l.id">
+                  <tr class="hover">
+                    <td>
+                      <input type="checkbox" class="checkbox checkbox-xs"
+                        :value="l.id" v-model="selectedLeagueIds" />
+                    </td>
+                    <td class="font-medium">{{ l.name }}</td>
+                    <td>{{ l.level_name }}</td>
+                    <td><span class="badge badge-xs" :class="statusBadgeClass(l.status)">{{ l.status }}</span></td>
+                    <td>{{ l.manager_count ?? '—' }}</td>
+                    <td class="text-xs">{{ fmtDt(l.season_starts_at) }}</td>
+                    <td class="text-xs">{{ fmtDt(l.draft_opens_at) }}</td>
+                    <td class="text-xs">{{ fmtDt(l.draft_closes_at) }}</td>
+                    <td>
+                      <button class="btn btn-xs btn-ghost" @click="openLeagueEdit(l)">✏️</button>
+                    </td>
+                  </tr>
+                  <!-- Inline edit row -->
+                  <tr v-if="editingLeagueId === l.id" class="bg-base-300">
+                    <td colspan="9" class="p-3">
+                      <div class="flex flex-wrap gap-3 items-end">
+                        <div class="form-control">
+                          <label class="label py-0"><span class="label-text text-xs">Season Start</span></label>
+                          <input v-model="leagueEditForm.season_starts_at" type="datetime-local" class="input input-bordered input-xs w-48" />
+                        </div>
+                        <div class="form-control">
+                          <label class="label py-0"><span class="label-text text-xs">Draft Opens</span></label>
+                          <input v-model="leagueEditForm.draft_opens_at" type="datetime-local" class="input input-bordered input-xs w-48" />
+                        </div>
+                        <div class="form-control">
+                          <label class="label py-0"><span class="label-text text-xs">Draft Closes</span></label>
+                          <input v-model="leagueEditForm.draft_closes_at" type="datetime-local" class="input input-bordered input-xs w-48" />
+                        </div>
+                        <div class="flex gap-2 mt-4">
+                          <button class="btn btn-xs btn-primary" :disabled="leagueEditSaving" @click="saveLeagueEdit(l.id)">
+                            <span v-if="leagueEditSaving" class="loading loading-spinner loading-xs"></span>
+                            Save
+                          </button>
+                          <button class="btn btn-xs btn-ghost" @click="editingLeagueId = null">Cancel</button>
+                        </div>
+                        <div v-if="leagueEditError" class="text-error text-xs self-center">{{ leagueEditError }}</div>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -719,6 +756,60 @@ const selectedLeagueIds = ref([])
 const confirmBatchDelete = ref(false)
 const deleting = ref(false)
 const deleteResult = ref(null)
+
+// ── Inline league edit ───────────────────────────────────────────────────────
+const editingLeagueId = ref(null)
+const leagueEditForm = ref({ season_starts_at: '', draft_opens_at: '', draft_closes_at: '' })
+const leagueEditSaving = ref(false)
+const leagueEditError = ref(null)
+
+function toLocalDtInput(isoStr) {
+  if (!isoStr) return ''
+  // Convert UTC ISO → local datetime-local string (YYYY-MM-DDTHH:MM)
+  const d = new Date(isoStr)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function fmtDt(isoStr) {
+  if (!isoStr) return '—'
+  const d = new Date(isoStr)
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function openLeagueEdit(league) {
+  if (editingLeagueId.value === league.id) {
+    editingLeagueId.value = null
+    return
+  }
+  leagueEditError.value = null
+  leagueEditForm.value = {
+    season_starts_at: toLocalDtInput(league.season_starts_at),
+    draft_opens_at: toLocalDtInput(league.draft_opens_at),
+    draft_closes_at: toLocalDtInput(league.draft_closes_at),
+  }
+  editingLeagueId.value = league.id
+}
+
+async function saveLeagueEdit(leagueId) {
+  leagueEditSaving.value = true
+  leagueEditError.value = null
+  try {
+    const { data } = await api.patch(`/api/admin/fantasy/leagues/${leagueId}`, {
+      season_starts_at: leagueEditForm.value.season_starts_at || null,
+      draft_opens_at: leagueEditForm.value.draft_opens_at || null,
+      draft_closes_at: leagueEditForm.value.draft_closes_at || null,
+    })
+    // Update in-place
+    const idx = adminLeagues.value.findIndex(l => l.id === leagueId)
+    if (idx !== -1) Object.assign(adminLeagues.value[idx], data)
+    editingLeagueId.value = null
+  } catch (e) {
+    leagueEditError.value = e.response?.data?.message || e.message
+  } finally {
+    leagueEditSaving.value = false
+  }
+}
 
 async function loadAdminLeagues() {
   adminLeaguesLoading.value = true
