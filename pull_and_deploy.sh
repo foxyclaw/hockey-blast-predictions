@@ -73,7 +73,7 @@ fi
 # ── 3. Run DB migrations ───────────────────────────────────────────────────
 echo ""
 echo "🗄️  Running DB migrations..."
-DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
+DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if "$DEPLOY_DIR/.venv/bin/alembic" -c "$DEPLOY_DIR/alembic.ini" upgrade head 2>&1; then
   echo "   ✅ Migrations complete"
 else
