@@ -53,55 +53,67 @@
       <div v-else-if="pendingClaims.length === 0" class="text-center py-12 text-base-content/50">
         ✅ No pending claims to review.
       </div>
-      <div v-else class="space-y-4">
+      <div v-else class="space-y-6">
+        <!-- Group by user -->
         <div
-          v-for="claim in pendingClaims"
-          :key="claim.id"
+          v-for="(group, userId) in pendingByUser"
+          :key="userId"
           class="card bg-base-200 shadow-md border border-warning/30"
         >
           <div class="card-body">
-            <div class="flex flex-wrap gap-4 justify-between">
-              <!-- Left: claim info -->
-              <div class="space-y-1">
-                <div class="text-sm">
-                  <span class="font-bold">{{ claim.review_context?.login_name || claim.user_display_name }}</span>
-                  <span class="text-base-content/40 ml-1">({{ claim.user_email }})</span>
-                  wants to be
-                  <span class="font-bold text-primary">{{ claim.review_context?.claimed_name || (claim.profile_snapshot?.first_name + ' ' + claim.profile_snapshot?.last_name) }}</span>
-                  <span v-if="claim.profile_snapshot?.orgs?.length" class="text-base-content/40 ml-1">@ {{ claim.profile_snapshot.orgs[0] }}</span>
-                </div>
-                <div v-if="claim.review_context?.is_manual_search" class="text-xs text-warning">
-                  ⚠️ Searched by name — login didn't match
-                </div>
-                <div v-if="claim.review_context?.conflict_with" class="text-xs text-error">
-                  🔴 Already claimed by {{ claim.review_context.conflict_with.user_display_name }}
-                </div>
-                <div class="text-xs text-base-content/30">{{ formatDate(claim.claimed_at) }} · HB ID {{ claim.hb_human_id }}</div>
-              </div>
-              <!-- Right: status badge -->
+            <!-- User header -->
+            <div class="flex flex-wrap gap-2 justify-between items-center mb-2">
               <div>
-                <span class="badge badge-warning">pending review</span>
+                <span class="font-bold">{{ group[0].review_context?.login_name || group[0].user_display_name }}</span>
+                <span class="text-base-content/40 ml-1 text-sm">({{ group[0].user_email }})</span>
+              </div>
+              <div class="flex gap-2">
+                <button
+                  class="btn btn-success btn-sm"
+                  :disabled="batchLoading[userId]"
+                  @click="approveAll(userId)"
+                >
+                  <span v-if="batchLoading[userId]" class="loading loading-spinner loading-xs"></span>
+                  ✅ Approve all ({{ group.length }})
+                </button>
               </div>
             </div>
 
-            <!-- Action buttons -->
-            <div class="mt-4 flex gap-2">
-              <button
-                class="btn btn-success btn-sm"
-                :disabled="reviewLoading[claim.id]"
-                @click="approve(claim.id)"
+            <!-- Individual claims -->
+            <div class="space-y-3">
+              <div
+                v-for="claim in group"
+                :key="claim.id"
+                class="bg-base-300 rounded-lg p-3"
               >
-                <span v-if="reviewLoading[claim.id]" class="loading loading-spinner loading-xs"></span>
-                ✅ Approve
-              </button>
-              <button
-                class="btn btn-error btn-sm"
-                :disabled="reviewLoading[claim.id]"
-                @click="reject(claim.id)"
-              >
-                <span v-if="reviewLoading[claim.id]" class="loading loading-spinner loading-xs"></span>
-                ❌ Reject
-              </button>
+                <div class="flex flex-wrap gap-4 justify-between">
+                  <div class="space-y-1">
+                    <div class="text-sm">
+                      wants to be
+                      <span class="font-bold text-primary">{{ claim.review_context?.claimed_name || (claim.profile_snapshot?.first_name + ' ' + claim.profile_snapshot?.last_name) }}</span>
+                      <span v-if="claim.profile_snapshot?.orgs?.length" class="text-base-content/40 ml-1">@ {{ claim.profile_snapshot.orgs[0] }}</span>
+                    </div>
+                    <div v-if="claim.review_context?.is_manual_search" class="text-xs text-warning">
+                      ⚠️ Searched by name — login didn't match
+                    </div>
+                    <div v-if="claim.review_context?.conflict_with" class="text-xs text-error">
+                      🔴 Already claimed by {{ claim.review_context.conflict_with.user_display_name }}
+                    </div>
+                    <div class="text-xs text-base-content/30">{{ formatDate(claim.claimed_at) }} · HB ID {{ claim.hb_human_id }}</div>
+                  </div>
+                  <!-- Individual approve/reject -->
+                  <div class="flex gap-2 items-start">
+                    <button class="btn btn-success btn-xs" :disabled="reviewLoading[claim.id]" @click="approve(claim.id)">
+                      <span v-if="reviewLoading[claim.id]" class="loading loading-spinner loading-xs"></span>
+                      ✅
+                    </button>
+                    <button class="btn btn-error btn-xs" :disabled="reviewLoading[claim.id]" @click="reject(claim.id)">
+                      <span v-if="reviewLoading[claim.id]" class="loading loading-spinner loading-xs"></span>
+                      ❌
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -517,6 +529,17 @@ const pendingLoading = ref(false)
 const pendingCount = computed(() => pendingClaims.value.length)
 const reviewNotes = ref({})
 const reviewLoading = ref({})
+const batchLoading = ref({})
+
+const pendingByUser = computed(() => {
+  const groups = {}
+  for (const claim of pendingClaims.value) {
+    const uid = claim.user_id
+    if (!groups[uid]) groups[uid] = []
+    groups[uid].push(claim)
+  }
+  return groups
+})
 
 async function loadPendingClaims() {
   pendingLoading.value = true
@@ -527,6 +550,18 @@ async function loadPendingClaims() {
     console.error('Failed to load pending claims', e)
   } finally {
     pendingLoading.value = false
+  }
+}
+
+async function approveAll(userId) {
+  batchLoading.value[userId] = true
+  try {
+    await api.post('/api/admin/claims/approve-batch', { user_id: parseInt(userId) })
+    pendingClaims.value = pendingClaims.value.filter(c => c.user_id !== parseInt(userId))
+  } catch (e) {
+    alert('Failed to approve all: ' + (e.response?.data?.message || e.message))
+  } finally {
+    batchLoading.value[userId] = false
   }
 }
 
