@@ -74,7 +74,7 @@ fi
 echo ""
 echo "🗄️  Running DB migrations..."
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
-if "$DEPLOY_DIR/.venv/bin/alembic" -c "$DEPLOY_DIR/migrations/alembic.ini" upgrade head 2>&1; then
+if "$DEPLOY_DIR/.venv/bin/alembic" -c "$DEPLOY_DIR/alembic.ini" upgrade head 2>&1; then
   echo "   ✅ Migrations complete"
 else
   echo "   ❌ Migrations failed — check output above"
