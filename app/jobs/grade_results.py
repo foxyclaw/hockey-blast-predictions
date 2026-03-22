@@ -15,6 +15,7 @@ import logging
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,27 @@ def run_grade_job():
             )
         except Exception as exc:
             logger.exception("[grader] Unhandled exception during grader run: %s", exc)
+
+
+def run_prediction_snapshot_job():
+    """
+    Execute the snapshot_upcoming_games job.
+    Runs inside a Flask application context.
+    """
+    from flask import current_app
+
+    with current_app.app_context():
+        try:
+            from app.services import prediction_snapshot
+            summary = prediction_snapshot.snapshot_upcoming_games()
+            logger.info(
+                "[snapshot] Run complete — snapshotted=%d skipped=%d errors=%d",
+                summary.get("snapshotted", 0),
+                summary.get("skipped", 0),
+                summary.get("errors", 0),
+            )
+        except Exception as exc:
+            logger.exception("[snapshot] Unhandled exception during snapshot run: %s", exc)
 
 
 def start_scheduler(app):
@@ -94,6 +116,28 @@ def start_scheduler(app):
         trigger=IntervalTrigger(minutes=interval_minutes),
         id="grade_results",
         name="Grade completed game picks",
+        replace_existing=True,
+    )
+
+    def _snapshot_job_with_context():
+        with _app.app_context():
+            try:
+                from app.services import prediction_snapshot
+                summary = prediction_snapshot.snapshot_upcoming_games()
+                logger.info(
+                    "[snapshot] Run complete — snapshotted=%d skipped=%d errors=%d",
+                    summary.get("snapshotted", 0),
+                    summary.get("skipped", 0),
+                    summary.get("errors", 0),
+                )
+            except Exception as exc:
+                logger.exception("[snapshot] Error: %s", exc)
+
+    _scheduler.add_job(
+        func=_snapshot_job_with_context,
+        trigger=CronTrigger(hour=3, minute=3, timezone="America/Los_Angeles"),
+        id="snapshot_predictions",
+        name="Snapshot upcoming game predictions",
         replace_existing=True,
     )
 
