@@ -4,8 +4,9 @@ Admin blueprint — manage claims and users.
 Routes (all require is_admin):
     GET  /api/admin/claims                     — list claims (filter by status)
     GET  /api/admin/claims/<id>                — claim detail
-    POST /api/admin/claims/<id>/approve        — approve a claim
+    POST /api/admin/claims/<id>/approve        — approve a single claim
     POST /api/admin/claims/<id>/reject         — reject a claim
+    POST /api/admin/claims/approve-batch       — approve ALL pending claims for a user at once
     GET  /api/admin/users                      — list all users
     POST /api/admin/users/<id>/toggle-admin    — toggle is_admin (super admin only)
 """
@@ -179,6 +180,202 @@ def approve_claim(claim_id: int):
         )
 
     return jsonify({"ok": True, "claim": _claim_detail(claim, pred_session)})
+
+
+@admin_bp.route("/claims/approve-batch", methods=["POST"])
+@require_admin
+def approve_claims_batch():
+    """
+    POST /api/admin/claims/approve-batch
+    Body: { "user_id": 43, "note": "..." }
+
+    Approves ALL pending_review claims for a user in one shot, then fires merge.
+    This is the preferred flow — avoids ambiguity from approving claims one-by-one.
+    """
+    pred_session = PredSession()
+    data = request.get_json(force=True, silent=True) or {}
+    user_id = data.get("user_id")
+    note = data.get("note") or None
+
+    if not user_id:
+        return error_response("VALIDATION_ERROR", "user_id required", 400)
+
+    pending = pred_session.execute(
+        select(PredUserHbClaim).where(
+            PredUserHbClaim.user_id == user_id,
+            PredUserHbClaim.claim_status == "pending_review",
+        )
+    ).scalars().all()
+
+    if not pending:
+        return error_response("NOT_FOUND", "No pending claims for this user", 404)
+
+    now_utc = datetime.now(timezone.utc)
+    claimant = pred_session.get(PredUser, user_id)
+
+    for claim in pending:
+        claim.claim_status = "confirmed"
+        claim.admin_note = note
+        claim.reviewed_by = g.pred_user.id
+        claim.reviewed_at = now_utc
+        if claimant and claimant.hb_human_id is None:
+            claimant.hb_human_id = claim.hb_human_id
+            claim.is_primary = True
+
+    pred_session.commit()
+
+    # Fire merge across all confirmed claims
+    try:
+        confirmed_claims = pred_session.execute(
+            select(PredUserHbClaim).where(
+                PredUserHbClaim.user_id == user_id,
+                PredUserHbClaim.claim_status == "confirmed",
+            )
+        ).scalars().all()
+
+        if len(confirmed_claims) >= 2:
+            primary_claim = next((c for c in confirmed_claims if c.is_primary), None)
+            if primary_claim:
+                import os as _os
+                from sqlalchemy import create_engine as _create_engine
+                from sqlalchemy.orm import sessionmaker as _sessionmaker
+                _boss_url = _os.environ.get("HB_BOSS_DATABASE_URL")
+                hb_session = _sessionmaker(bind=_create_engine(_boss_url))() if _boss_url else HBSession()
+                merged_secondary_claims = []
+                for secondary_claim in confirmed_claims:
+                    if secondary_claim.id != primary_claim.id and not secondary_claim.merged_at:
+                        try:
+                            merge_humans(hb_session, primary_claim.hb_human_id, secondary_claim.hb_human_id)
+                            merged_secondary_claims.append(secondary_claim)
+                        except Exception:
+                            logging.getLogger(__name__).exception(
+                                "merge_humans failed for hb_human_id=%d", secondary_claim.hb_human_id
+                            )
+                hb_session.close()
+                for sc in merged_secondary_claims:
+                    sc.merged_at = now_utc
+                pred_session.commit()
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "batch merge failed for user_id=%d", user_id
+        )
+
+    all_claims = pred_session.execute(
+        select(PredUserHbClaim).where(PredUserHbClaim.user_id == user_id)
+    ).scalars().all()
+
+    return jsonify({
+        "ok": True,
+        "approved_count": len(pending),
+        "claims": [_claim_detail(c, pred_session) for c in all_claims],
+    })
+
+
+@admin_bp.route("/claims/approve-batch", methods=["POST"])
+@require_admin
+def approve_batch_claims():
+    """
+    POST /api/admin/claims/approve-batch
+
+    Body: { "user_id": 43, "note": "optional" }
+
+    Approves ALL pending_review claims for the given user in a single transaction:
+    - Sets claim_status='confirmed', reviewed_by, reviewed_at on each pending claim.
+    - If the user has no hb_human_id yet, sets it to their primary claim's hb_human_id.
+      If no primary exists among pending claims, the first pending claim is promoted.
+    - After committing, fires merge_humans for all confirmed claims (same logic as
+      single approve_claim but over the full set at once).
+    - Returns { "ok": true, "approved_count": N, "claims": [...] }
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    user_id = data.get("user_id")
+    note = data.get("note") or None
+
+    if not isinstance(user_id, int) or user_id <= 0:
+        return error_response("VALIDATION_ERROR", "'user_id' must be a positive integer", 400)
+
+    pred_session = PredSession()
+
+    claimant = pred_session.get(PredUser, user_id)
+    if claimant is None:
+        return error_response("NOT_FOUND", f"No user with id={user_id}", 404)
+
+    pending = pred_session.execute(
+        select(PredUserHbClaim).where(
+            PredUserHbClaim.user_id == user_id,
+            PredUserHbClaim.claim_status == "pending_review",
+        )
+    ).scalars().all()
+
+    if not pending:
+        return jsonify({"ok": True, "approved_count": 0, "claims": [], "message": "No pending claims for this user"})
+
+    now_utc = datetime.now(timezone.utc)
+    reviewer_id = g.pred_user.id
+
+    for claim in pending:
+        claim.claim_status = "confirmed"
+        claim.admin_note = note
+        claim.reviewed_by = reviewer_id
+        claim.reviewed_at = now_utc
+
+    # If user has no hb_human_id yet, link the primary claim (or first pending if none is primary)
+    if claimant.hb_human_id is None:
+        primary_claim = next((c for c in pending if c.is_primary), pending[0])
+        primary_claim.is_primary = True
+        claimant.hb_human_id = primary_claim.hb_human_id
+
+    pred_session.commit()
+
+    # Fire merge_humans for all confirmed claims (primary absorbs secondaries)
+    try:
+        confirmed_claims = pred_session.execute(
+            select(PredUserHbClaim).where(
+                PredUserHbClaim.user_id == user_id,
+                PredUserHbClaim.claim_status == "confirmed",
+            )
+        ).scalars().all()
+
+        if len(confirmed_claims) >= 2:
+            primary_claim = next((c for c in confirmed_claims if c.is_primary), None)
+            if primary_claim:
+                import os as _os
+                from sqlalchemy import create_engine as _create_engine
+                from sqlalchemy.orm import sessionmaker as _sessionmaker
+                _boss_url = _os.environ.get("HB_BOSS_DATABASE_URL")
+                if _boss_url:
+                    _boss_engine = _create_engine(_boss_url)
+                    hb_session = _sessionmaker(bind=_boss_engine)()
+                else:
+                    hb_session = HBSession()
+                merged_secondary_claims = []
+                for secondary_claim in confirmed_claims:
+                    if secondary_claim.id != primary_claim.id:
+                        merge_humans(
+                            hb_session,
+                            primary_human_id=primary_claim.hb_human_id,
+                            secondary_human_id=secondary_claim.hb_human_id,
+                        )
+                        merged_secondary_claims.append(secondary_claim)
+                hb_session.close()
+                for sc in merged_secondary_claims:
+                    sc.merged_at = now_utc
+                pred_session.commit()
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "merge_humans failed for user_id=%d after approve_batch_claims",
+            user_id,
+        )
+
+    all_claims = pred_session.execute(
+        select(PredUserHbClaim).where(PredUserHbClaim.user_id == user_id)
+    ).scalars().all()
+
+    return jsonify({
+        "ok": True,
+        "approved_count": len(pending),
+        "claims": [_claim_detail(c, pred_session) for c in all_claims],
+    })
 
 
 @admin_bp.route("/claims/<int:claim_id>/reject", methods=["POST"])

@@ -4,6 +4,7 @@ Identity blueprint — link a PredUser to their hockey_blast human profile.
 Routes:
     GET  /api/identity/candidates  — search for matching humans in hockey_blast
     POST /api/identity/confirm     — claim one or more human IDs (append-only)
+                                     optional: primary_hb_human_id to designate primary at claim time
 
 Security model:
     - last_name is ALWAYS sourced from the user's Auth0 profile (pred_user.display_name)
@@ -329,9 +330,14 @@ def confirm_identity():
     """
     POST /api/identity/confirm
 
-    Body: { "hb_human_id": 12345 }          — claim one
-       or { "hb_human_id": [123, 456] }      — claim multiple (different records = same person)
-       or { "skip": true }                    — skip for now
+    Body: { "hb_human_id": 12345 }                                  — claim one
+       or { "hb_human_id": [123, 456] }                             — claim multiple (different records = same person)
+       or { "hb_human_id": [123, 456], "primary_hb_human_id": 123 } — claim multiple, designate primary explicitly
+       or { "skip": true }                                           — skip for now
+
+    primary_hb_human_id (optional): if provided and is one of the IDs being claimed,
+    that ID gets is_primary=True instead of defaulting to the first in the list.
+    Primary can only be set at claim time — there is no post-claim set-primary endpoint.
 
     Each claim is appended to pred_user_hb_claims with a full profile snapshot
     (name, aliases, teams, orgs, dates) — disaster recovery: if hockey_blast is
@@ -356,6 +362,10 @@ def confirm_identity():
     # always require admin review regardless of conflicts
     force_pending = bool(data.get("manual_search", False))
 
+    # Optional: caller may designate which ID should be primary at claim time.
+    # Must be one of the IDs being claimed; ignored otherwise.
+    primary_hb_human_id = data.get("primary_hb_human_id")
+
     if not all(isinstance(i, int) and i > 0 for i in ids_to_claim):
         return error_response("VALIDATION_ERROR", "hb_human_id must be positive integer(s)", 400)
 
@@ -379,7 +389,13 @@ def confirm_identity():
     for idx, hid in enumerate(ids_to_claim):
         if hid in existing_ids:
             continue
-        is_primary = not has_primary and idx == 0
+        # Determine if this claim should be primary:
+        # - If primary_hb_human_id was specified and matches this ID, use it as primary.
+        # - Otherwise fall back to the first ID in the list (original behaviour).
+        if primary_hb_human_id is not None and isinstance(primary_hb_human_id, int):
+            is_primary = not has_primary and hid == primary_hb_human_id and primary_hb_human_id in ids_to_claim
+        else:
+            is_primary = not has_primary and idx == 0
         # Build and store the full profile snapshot for disaster recovery
         snapshot = _build_human_profile(hb_session, hid)
 
@@ -488,63 +504,6 @@ def confirm_identity():
             for c in all_claims
         ],
     })
-
-
-@identity_bp.route("/set-primary", methods=["POST"])
-@require_auth
-def set_primary():
-    """
-    POST /api/identity/set-primary
-
-    Body: { "hb_human_id": 12345 }
-
-    Sets the given claim as primary for the current user:
-    - Validates that hb_human_id belongs to a *confirmed* claim for this user
-    - Sets is_primary=True on that claim, is_primary=False on all others
-    - Updates pred_users.hb_human_id to the chosen value
-    - Returns { "ok": true, "primary_hb_human_id": 12345 }
-    """
-    from app.models.pred_user_hb_claim import PredUserHbClaim
-
-    user = g.pred_user
-    data = request.get_json(force=True, silent=True) or {}
-    hb_human_id = data.get("hb_human_id")
-
-    if not isinstance(hb_human_id, int) or hb_human_id <= 0:
-        return error_response("VALIDATION_ERROR", "'hb_human_id' must be a positive integer", 400)
-
-    pred_session = PredSession()
-
-    # Find the target claim — must be confirmed and belong to this user
-    target_claim = pred_session.execute(
-        select(PredUserHbClaim).where(
-            PredUserHbClaim.user_id == user.id,
-            PredUserHbClaim.hb_human_id == hb_human_id,
-            PredUserHbClaim.claim_status == "confirmed",
-        )
-    ).scalars().first()
-
-    if target_claim is None:
-        return error_response(
-            "NOT_FOUND",
-            f"No confirmed claim found for hb_human_id={hb_human_id} belonging to this user",
-            404,
-        )
-
-    # Flip is_primary on all confirmed claims for this user
-    all_claims = pred_session.execute(
-        select(PredUserHbClaim).where(PredUserHbClaim.user_id == user.id)
-    ).scalars().all()
-
-    for claim in all_claims:
-        claim.is_primary = claim.hb_human_id == hb_human_id
-
-    # Update the user's canonical hb_human_id on the pred_users record
-    user.hb_human_id = hb_human_id
-
-    pred_session.commit()
-
-    return jsonify({"ok": True, "primary_hb_human_id": hb_human_id})
 
 
 @identity_bp.route("/orgs", methods=["GET"])

@@ -12,14 +12,6 @@
     </div>
 
     <template v-else>
-      <!-- Toast -->
-      <div
-        v-if="primaryToast"
-        class="alert alert-success text-sm py-2 transition-all"
-      >
-        ✅ Primary identity updated!
-      </div>
-
       <!-- Linked claims -->
       <div class="card bg-base-200 shadow">
         <div class="card-body">
@@ -69,16 +61,6 @@
                 </div>
               </div>
 
-              <!-- Set as primary button -->
-              <button
-                v-if="!claim.is_primary && claim.claim_status === 'confirmed' && claims.length > 1"
-                class="btn btn-sm btn-outline btn-primary shrink-0"
-                :disabled="settingPrimary === claim.hb_human_id"
-                @click="setPrimary(claim.hb_human_id)"
-              >
-                <span v-if="settingPrimary === claim.hb_human_id" class="loading loading-spinner loading-xs"></span>
-                <span v-else>Set primary</span>
-              </button>
             </div>
           </div>
 
@@ -109,8 +91,6 @@ const api = useApiClient()
 
 const loading = ref(true)
 const claims = ref([])
-const settingPrimary = ref(null)
-const primaryToast = ref(false)
 
 async function loadClaims() {
   try {
@@ -119,20 +99,6 @@ async function loadClaims() {
   } catch (e) {
     console.error('[IdentityView] failed to load claims', e)
     claims.value = []
-  }
-}
-
-async function setPrimary(hbHumanId) {
-  settingPrimary.value = hbHumanId
-  try {
-    await api.post('/api/identity/set-primary', { hb_human_id: hbHumanId })
-    await loadClaims()
-    primaryToast.value = true
-    setTimeout(() => { primaryToast.value = false }, 3000)
-  } catch (e) {
-    console.error('[IdentityView] set-primary failed', e)
-  } finally {
-    settingPrimary.value = null
   }
 }
 
