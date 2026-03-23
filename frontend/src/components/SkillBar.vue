@@ -1,6 +1,7 @@
 <template>
-  <div class="text-xs text-base-content/60" :title="`Skill rating: ${skill ?? 'N/A'} — lower = stronger`">
-    <span v-if="skill !== null && skill !== undefined">Skill: {{ Math.round(skill) === 0 ? 'N/A' : Math.round(skill) }}</span>
+  <div class="text-xs text-base-content/60" :title="skill !== null && skill !== undefined ? `Skill rating: ${Math.round(skill)} — lower = stronger` : 'Skill rating: N/A — no data'">
+    <span v-if="skill !== null && skill !== undefined">Skill: {{ Math.round(skill) }}</span>
+    <span v-else>Skill: N/A</span>
   </div>
 </template>
 
