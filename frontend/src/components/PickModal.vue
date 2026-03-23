@@ -252,24 +252,30 @@ const isUpsetPick = computed(() => {
   const opp = selectedTeam.value === props.game.home_team?.id
     ? props.game.away_team
     : props.game.home_team
-  if (!picked?.avg_skill || !opp?.avg_skill) return false
+  if (picked?.avg_skill == null || opp?.avg_skill == null) return false
   return picked.avg_skill > opp.avg_skill
 })
 
+function hasSkill(team) {
+  return team?.avg_skill !== null && team?.avg_skill !== undefined
+}
+
 function isUnderdog(team) {
-  if (!team?.avg_skill || !props.game) return false
+  if (!hasSkill(team) || !props.game) return false
   const other = team.id === props.game.home_team?.id
     ? props.game.away_team
     : props.game.home_team
-  return team.avg_skill > (other?.avg_skill ?? 50)
+  if (!hasSkill(other)) return false
+  return team.avg_skill > other.avg_skill
 }
 
 function isFavorite(team) {
-  if (!team?.avg_skill || !props.game) return false
+  if (!hasSkill(team) || !props.game) return false
   const other = team.id === props.game.home_team?.id
     ? props.game.away_team
     : props.game.home_team
-  return team.avg_skill < (other?.avg_skill ?? 50)
+  if (!hasSkill(other)) return false
+  return team.avg_skill < other.avg_skill
 }
 
 function selectTeam(teamId) {

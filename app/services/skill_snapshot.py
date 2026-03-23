@@ -38,8 +38,10 @@ def get_team_avg_skill(team_id: int, org_id: int | None = None) -> float | None:
     skill_stmt = select(func.avg(Human.skater_skill_value)).where(
         Human.id.in_(select(recent_stmt.c.human_id)),
         Human.skater_skill_value.isnot(None),
+        Human.skater_skill_value > 0,  # 0 means uninitialized, not elite
     )
     result = session.execute(skill_stmt).scalar_one_or_none()
+    # Return None (no data) if no players have real skill values
     return float(result) if result is not None else None
 
 
