@@ -23,11 +23,6 @@
           </RouterLink>
         </li>
         <li v-if="isFullyAuthenticated">
-          <RouterLink to="/leagues" class="rounded-lg text-sm font-medium" active-class="bg-primary/20 text-primary">
-            Leagues
-          </RouterLink>
-        </li>
-        <li v-if="isFullyAuthenticated">
           <RouterLink to="/fantasy" class="rounded-lg text-sm font-medium" active-class="bg-primary/20 text-primary">
             Fantasy
           </RouterLink>
