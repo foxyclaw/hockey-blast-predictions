@@ -397,18 +397,22 @@ def _clear_stale_draft_notifications(user_id: int, league_id: int, pred) -> None
 
 
 def _notify_manager(user_id: int, league_id: int, pick_number: int, deadline: datetime, pred) -> None:
-    """Create a push notification for a manager's draft turn."""
+    """
+    Notify a manager it's their turn to pick.
+    Uses notify_user so SMS fires after 10 min if they haven't been active.
+    """
     try:
-        # Clear previous unread draft notifications for this league to avoid pileup
         _clear_stale_draft_notifications(user_id, league_id, pred)
-        notif = PredNotification(
+        from app.services.notify_service import notify_user
+        deadline_str = deadline.astimezone().strftime("%b %d %I:%M %p %Z")
+        notify_user(
+            db=pred,
             user_id=user_id,
-            type="fantasy_draft",
             title="🏒 Your Pick!",
-            body=f"Pick #{pick_number} — draft until {deadline.astimezone().strftime('%b %d %I:%M %p %Z')}.",
-            link=f"/fantasy/{league_id}",
+            body=f"Pick #{pick_number} — deadline {deadline_str}.",
+            url=f"/fantasy/{league_id}",
+            notif_type="fantasy_draft",
         )
-        pred.add(notif)
         pred.commit()
     except Exception as e:
         logger.warning(f"Could not create draft notification: {e}")
