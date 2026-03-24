@@ -85,8 +85,9 @@ watch(
         const token = idTokenClaims.value?.__raw
         debugToken.value = token ? token.substring(0, 30) + '…' : 'MISSING'
         await userStore.fetchPredUser(token)
-        // Trigger a navigation to current route so the router guard re-evaluates
-        if (router.currentRoute.value.name !== 'callback') {
+        // Only re-evaluate router guard for onboarding routes (profile-setup etc.)
+        const onboardingRoutes = ['profile-setup', 'identity', 'player-prefs']
+        if (onboardingRoutes.includes(router.currentRoute.value.name)) {
           await router.replace(router.currentRoute.value.fullPath)
         }
       } catch (e) {

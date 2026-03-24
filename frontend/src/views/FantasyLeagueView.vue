@@ -407,7 +407,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth0 } from '@auth0/auth0-vue'
 import { useUserStore } from '@/stores/user'
@@ -716,6 +716,20 @@ async function pickPlayer(player) {
 watch(authLoading, (loading) => {
   if (!loading) loadLeague()
 })
+
+// Auto-refresh draft state every 30s when draft is active
+let _draftPollInterval = null
+onUnmounted(() => { if (_draftPollInterval) clearInterval(_draftPollInterval) })
+
+watch(() => league.value?.status, (status) => {
+  if (_draftPollInterval) { clearInterval(_draftPollInterval); _draftPollInterval = null }
+  if (['draft_open', 'drafting'].includes(status)) {
+    _draftPollInterval = setInterval(async () => {
+      await loadLeague()
+      await loadDraftQueue()
+    }, 30000)
+  }
+}, { immediate: true })
 
 watch(activeTab, (tab) => {
   if (tab === 'standings') loadStandings()
