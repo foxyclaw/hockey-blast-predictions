@@ -75,7 +75,22 @@ def build_draft_queue(league_id: int) -> None:
 
     n = len(managers)
     total_rounds = league.roster_skaters + league.roster_goalies
-    pick_hours = league.draft_pick_hours
+    total_picks = n * total_rounds
+
+    # Compute pick_hours dynamically from the draft window so the draft
+    # always fits within draft_opens_at → draft_closes_at.
+    # Fall back to league.draft_pick_hours if the window isn't set.
+    if league.draft_closes_at and total_picks > 0:
+        now_utc = datetime.now(timezone.utc)
+        window_start = max(league.draft_opens_at or now_utc, now_utc)
+        window_hours = (league.draft_closes_at - window_start).total_seconds() / 3600
+        pick_hours = max(1.0, window_hours / total_picks)
+        logger.info(
+            "[draft] league=%d managers=%d picks=%d window=%.1fh → %.2fh/pick",
+            league_id, n, total_picks, window_hours, pick_hours,
+        )
+    else:
+        pick_hours = league.draft_pick_hours
 
     overall = 1
     entries = []
