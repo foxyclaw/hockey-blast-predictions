@@ -55,7 +55,7 @@ const router = createRouter({
       path: '/fantasy/:id',
       name: 'fantasy-league',
       component: () => import('@/views/FantasyLeagueView.vue'),
-      beforeEnter: authGuard,
+      // Public — auth only required for join/pick actions within the view
     },
     {
       path: '/free-agents',
