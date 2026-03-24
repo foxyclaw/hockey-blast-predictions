@@ -233,7 +233,7 @@ const groupedLeagues = computed(() => {
   }
   return Object.entries(groups).map(([label, ls]) => ({
     label,
-    leagues: ls.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    leagues: ls.slice().sort((a, b) => (b.is_member ? 1 : 0) - (a.is_member ? 1 : 0) || (a.name || '').localeCompare(b.name || ''))
   }))
     .sort((a, b) => {
       const ai = STATUS_ORDER.indexOf(leagues.value.find(l => STATUS_LABELS[l.status] === a.label)?.status || '')
