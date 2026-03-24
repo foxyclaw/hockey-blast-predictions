@@ -902,6 +902,21 @@ async function launchSeason() {
   launching.value = true
   launchError.value = null
   launchResult.value = null
+  // Client-side date sanity checks
+  if (launchDraftOpens.value && launchDraftCloses.value) {
+    if (new Date(launchDraftOpens.value) >= new Date(launchDraftCloses.value)) {
+      launchError.value = 'Draft open time must be before draft close time'
+      launching.value = false
+      return
+    }
+  }
+  if (launchDraftCloses.value && launchStartDate.value) {
+    if (new Date(launchDraftCloses.value) > new Date(launchStartDate.value)) {
+      launchError.value = 'Draft must close before season start'
+      launching.value = false
+      return
+    }
+  }
   try {
     const { data } = await api.post('/api/admin/fantasy/launch-season', {
       org_id: launchOrgId.value,

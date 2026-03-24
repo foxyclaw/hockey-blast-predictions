@@ -545,6 +545,12 @@ def launch_fantasy_season():
     draft_opens_dt = _parse_dt(data.get("draft_opens_at"))
     draft_closes_dt = _parse_dt(data.get("draft_closes_at"))
 
+    # Sanity checks on date ordering
+    if draft_opens_dt and draft_closes_dt and draft_opens_dt >= draft_closes_dt:
+        return jsonify({"error": "VALIDATION_ERROR", "message": "Draft open time must be before draft close time"}), 400
+    if draft_closes_dt and start_dt and draft_closes_dt > start_dt:
+        return jsonify({"error": "VALIDATION_ERROR", "message": "Draft must close before season start"}), 400
+
     from hockey_blast_common_lib.models import Level
     from app.db import HBSession, PredSession
     from app.models.fantasy_league import FantasyLeague
