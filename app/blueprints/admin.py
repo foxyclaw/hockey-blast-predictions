@@ -497,6 +497,7 @@ def launch_fantasy_season():
     org_id = data.get("org_id", 1)
     level_ids = data.get("level_ids", [])
     season_start_date = data.get("season_start_date")
+    season_label = (data.get("season_label") or "Spring 2026").strip()
 
     if not level_ids:
         return jsonify({"error": "VALIDATION_ERROR", "message": "level_ids required"}), 400
@@ -576,7 +577,7 @@ def launch_fantasy_season():
                 level_id=level_id,
                 level_name=level_name,
                 org_id=org_id,
-                season_label="Spring 2026",
+                season_label=season_label,
                 status="forming",
                 max_managers=max_managers,
                 roster_skaters=roster_skaters,
