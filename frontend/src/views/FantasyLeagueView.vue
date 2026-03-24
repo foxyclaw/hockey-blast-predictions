@@ -84,7 +84,7 @@
 
       <!-- ── Draft Tab ── -->
       <div v-if="activeTab === 'draft'">
-        <div v-if="['forming', 'draft_open'].includes(league.status)" class="text-center py-10 text-base-content/40">
+        <div v-if="league.status === 'forming'" class="text-center py-10 text-base-content/40">
           <div class="text-4xl mb-2">⏳</div>
           <p class="font-medium">Draft opens {{ formatDeadline(league.draft_opens_at) }}</p>
           <p class="text-sm mt-1 max-w-xs mx-auto">
