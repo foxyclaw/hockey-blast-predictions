@@ -64,7 +64,8 @@
         <div class="flex gap-6 mt-3 text-sm text-base-content/60">
           <span>👥 {{ league.manager_count }} / {{ league.max_managers }} managers</span>
           <span>📋 {{ league.roster_skaters }} skaters + {{ league.roster_goalies }} goalie(s) per team</span>
-          <span>⏱ {{ league.draft_pick_hours }}h per pick</span>
+          <span v-if="league.draft_closes_at && league.draft_opens_at">⏱ Draft: {{ formatDeadline(league.draft_opens_at) }} – {{ formatDeadline(league.draft_closes_at) }}</span>
+          <span v-else>⏱ {{ league.draft_pick_hours }}h per pick</span>
         </div>
       </div>
 
