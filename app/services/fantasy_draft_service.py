@@ -24,8 +24,12 @@ _PT = _ZoneInfo("America/Los_Angeles")  # handles PDT/PST automatically
 def _compute_pick_hours(league) -> float:
     """
     Compute the per-pick time window in hours.
-    If draft_closes_at is set, distribute remaining window across remaining picks.
-    Otherwise fall back to league.draft_pick_hours.
+
+    Rules:
+    - If draft_closes_at is set: ALWAYS derive from the window, never use draft_pick_hours.
+      * Window still open: remaining_window / remaining_picks (min 1 min)
+      * Window already passed: 5 minutes per pick so auto-pick cascades fast
+    - If draft_closes_at is NOT set: use draft_pick_hours (async-style league, e.g. 24h/pick)
     """
     from sqlalchemy import select
     from app.db import PredSession
@@ -34,23 +38,23 @@ def _compute_pick_hours(league) -> float:
     if league.draft_closes_at:
         pred = PredSession()
         now_utc = datetime.now(timezone.utc)
-        remaining_picks = pred.execute(
+        remaining = pred.execute(
             select(FantasyDraftQueue).where(
                 FantasyDraftQueue.league_id == league.id,
                 FantasyDraftQueue.hb_human_id.is_(None),
                 FantasyDraftQueue.is_skipped == False,  # noqa: E712
-            )
+            ).with_only_columns(FantasyDraftQueue.id)
         ).scalars().all()
-        remaining = len(remaining_picks)
-        if remaining > 0:
-            window_end = league.draft_closes_at
-            window_hours = (window_end - now_utc).total_seconds() / 3600
+        count = len(remaining)
+        if count > 0:
+            window_hours = (league.draft_closes_at - now_utc).total_seconds() / 3600
             if window_hours > 0:
-                return max(1.0 / 60, window_hours / remaining)  # min 1 minute
+                return max(1.0 / 60, window_hours / count)  # min 1 minute
             else:
-                # Window already passed — give each remaining pick 5 minutes so
-                # auto-pick cascades quickly instead of defaulting to 24h.
-                return 5.0 / 60  # 5 minutes
+                return 5.0 / 60  # window passed — 5 min per pick to cascade fast
+        return 1.0 / 60  # nothing left, 1 min
+
+    # No draft_closes_at — true async league, use configured pick hours
     return float(league.draft_pick_hours)
 
 
