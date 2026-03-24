@@ -747,10 +747,11 @@ const launchSeasonLabel = ref('Spring 2026')
 // draft opens = next Friday 19:00, draft closes = Sunday after that 23:00
 function nextWeekday(dayOfWeek, hour, minute) {
   const d = new Date()
-  d.setHours(hour, minute, 0, 0)
   const diff = (dayOfWeek - d.getDay() + 7) % 7 || 7
   d.setDate(d.getDate() + diff)
-  return d.toISOString().slice(0, 16)
+  d.setHours(hour, minute, 0, 0)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(hour)}:${pad(minute)}`
 }
 const launchStartDate = ref(nextWeekday(1, 0, 1))    // next Monday 00:01
 const launchDraftOpens = ref(nextWeekday(5, 19, 0))  // next Friday 19:00
