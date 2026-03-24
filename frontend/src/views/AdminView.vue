@@ -329,6 +329,10 @@
               <input v-model="launchDraftCloses" type="datetime-local" class="input input-bordered input-sm" />
             </div>
             <div class="form-control">
+              <label class="label py-1"><span class="label-text text-xs">Season Label</span></label>
+              <input v-model="launchSeasonLabel" type="text" placeholder="e.g. Spring 2026" class="input input-bordered input-sm w-40" />
+            </div>
+            <div class="form-control">
               <label class="label cursor-pointer gap-2 py-1">
                 <span class="label-text text-xs">Active levels only</span>
                 <input type="checkbox" v-model="launchActiveOnly" class="checkbox checkbox-sm" />
@@ -738,6 +742,7 @@ async function loadOrgs() {
     await loadAdminLeagues()
   } catch { /* ignore */ }
 }
+const launchSeasonLabel = ref('Spring 2026')
 const launchStartDate = ref('')
 const launchDraftOpens = ref('')
 const launchDraftCloses = ref('')
@@ -868,6 +873,7 @@ async function launchSeason() {
       org_id: launchOrgId.value,
       level_ids: selectedLevelIds.value,
       season_start_date: launchStartDate.value,
+      season_label: launchSeasonLabel.value || undefined,
       draft_opens_at: launchDraftOpens.value || undefined,
       draft_closes_at: launchDraftCloses.value || undefined,
     })
