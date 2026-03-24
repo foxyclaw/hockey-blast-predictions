@@ -141,6 +141,46 @@ def start_scheduler(app):
         replace_existing=True,
     )
 
+    def _draft_advance_job():
+        """
+        Check all active drafts for expired pick deadlines.
+        Runs every minute so auto-pick fires promptly.
+        """
+        with _app.app_context():
+            try:
+                from datetime import datetime, timezone as _tz
+                from sqlalchemy import select
+                from app.db import PredSession
+                from app.models.fantasy_league import FantasyLeague
+                from app.services.fantasy_draft_service import advance_draft
+
+                pred = PredSession()
+                now = datetime.now(_tz.utc)
+                drafting_leagues = pred.execute(
+                    select(FantasyLeague.id).where(
+                        FantasyLeague.status.in_(["drafting", "draft_open"])
+                    )
+                ).scalars().all()
+
+                for league_id in drafting_leagues:
+                    try:
+                        advance_draft(league_id)
+                    except Exception as e:
+                        logger.warning("[draft] advance_draft(%d) error: %s", league_id, e)
+
+                if drafting_leagues:
+                    logger.debug("[draft] Checked %d active draft(s)", len(drafting_leagues))
+            except Exception as exc:
+                logger.exception("[draft] Unhandled error in draft advance job: %s", exc)
+
+    _scheduler.add_job(
+        func=_draft_advance_job,
+        trigger=IntervalTrigger(minutes=1),
+        id="advance_drafts",
+        name="Advance fantasy draft picks on deadline",
+        replace_existing=True,
+    )
+
     _scheduler.start()
     logger.info("[grader] Scheduler started. Interval: %d minutes", interval_minutes)
 

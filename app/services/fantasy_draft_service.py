@@ -21,7 +21,36 @@ from zoneinfo import ZoneInfo as _ZoneInfo
 _PT = _ZoneInfo("America/Los_Angeles")  # handles PDT/PST automatically
 
 
-def _deadline_respecting_quiet_hours(pick_hours: int) -> datetime:
+def _compute_pick_hours(league) -> float:
+    """
+    Compute the per-pick time window in hours.
+    If draft_closes_at is set, distribute remaining window across remaining picks.
+    Otherwise fall back to league.draft_pick_hours.
+    """
+    from sqlalchemy import select
+    from app.db import PredSession
+    from app.models.fantasy_draft_queue import FantasyDraftQueue
+
+    if league.draft_closes_at:
+        pred = PredSession()
+        now_utc = datetime.now(timezone.utc)
+        remaining_picks = pred.execute(
+            select(FantasyDraftQueue).where(
+                FantasyDraftQueue.league_id == league.id,
+                FantasyDraftQueue.hb_human_id.is_(None),
+                FantasyDraftQueue.is_skipped == False,  # noqa: E712
+            )
+        ).scalars().all()
+        remaining = len(remaining_picks)
+        if remaining > 0:
+            window_end = league.draft_closes_at
+            window_hours = max(0, (window_end - now_utc).total_seconds() / 3600)
+            if window_hours > 0:
+                return max(1.0 / 60, window_hours / remaining)  # min 1 minute
+    return float(league.draft_pick_hours)
+
+
+def _deadline_respecting_quiet_hours(pick_hours: float) -> datetime:
     """
     Return now + pick_hours, but push the deadline past 10 AM PT if it
     would land during quiet hours (midnight–10 AM).
@@ -211,7 +240,7 @@ def advance_draft(league_id: int) -> None:
         current.is_skipped = True
         pred.commit()
 
-    _set_next_deadline(league_id, pred, league.draft_pick_hours)
+    _set_next_deadline(league_id, pred, _compute_pick_hours(league))
 
 
 def make_pick(league_id: int, user_id: int, hb_human_id: int) -> dict:
@@ -282,7 +311,7 @@ def make_pick(league_id: int, user_id: int, hb_human_id: int) -> dict:
         league.draft_started_at = now
         pred.commit()
 
-    _set_next_deadline(league_id, pred, league.draft_pick_hours)
+    _set_next_deadline(league_id, pred, _compute_pick_hours(league))
 
     return current.to_dict()
 
