@@ -133,7 +133,7 @@ def get_player_pool(level_id: int, org_id: int = 1, league_id: int = None, seaso
         .where(DivisionStatsGoalie.division_id.in_(div_ids_stmt))
         .where(DivisionStatsGoalie.human_id.not_in(non_human_ids) if non_human_ids else True)
         .group_by(DivisionStatsGoalie.human_id, Human.first_name, Human.last_name)
-        .having(func.sum(DivisionStatsGoalie.games_played) >= 2)
+        .having(func.sum(DivisionStatsGoalie.games_played) >= 1)
     )
 
     goalie_rows = hb.execute(goalie_stmt).all()
