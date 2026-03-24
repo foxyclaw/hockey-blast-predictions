@@ -112,7 +112,6 @@
             <span class="text-xs opacity-60">{{ user?.email }}</span>
           </li>
           <li><RouterLink to="/picks">My Picks</RouterLink></li>
-          <li><RouterLink to="/leagues">Groups</RouterLink></li>
           <li><RouterLink to="/fantasy">Fantasy</RouterLink></li>
           <li><RouterLink to="/free-agents">Free Agents</RouterLink></li>
           <li><RouterLink to="/player-prefs">Player Profile</RouterLink></li>
@@ -140,7 +139,7 @@
         <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-200 rounded-box w-52">
           <li><RouterLink to="/">Games</RouterLink></li>
           <li v-if="isFullyAuthenticated"><RouterLink to="/picks">My Picks</RouterLink></li>
-          <li v-if="isFullyAuthenticated"><RouterLink to="/leagues">Groups</RouterLink></li>
+          <!-- Leagues hidden -->
           <li v-if="isFullyAuthenticated"><RouterLink to="/fantasy">Fantasy</RouterLink></li>
           <li><RouterLink to="/free-agents">Free Agents</RouterLink></li>
           <li v-if="isFullyAuthenticated && predUser?.is_admin"><RouterLink to="/admin">🛡️ Admin</RouterLink></li>
