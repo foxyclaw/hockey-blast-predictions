@@ -840,7 +840,7 @@ function toLocalDtInput(isoStr) {
 function fmtDt(isoStr) {
   if (!isoStr) return '—'
   const d = new Date(isoStr)
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })
 }
 
 function openLeagueEdit(league) {
