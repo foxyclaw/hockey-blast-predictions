@@ -437,6 +437,7 @@ const RosterList = {
           h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-2' }, 'GP'),
           h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-2' }, 'G'),
           h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-2' }, 'A'),
+          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-2 text-error' }, 'PIM'),
           h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 pl-2' }, 'FP'),
         ])
       ])
@@ -458,6 +459,7 @@ const RosterList = {
           h('td', { class: 'text-right text-xs px-2 py-1 opacity-70' }, p.gp ?? 0),
           h('td', { class: 'text-right text-xs px-2 py-1 opacity-70' }, p.goals ?? 0),
           h('td', { class: 'text-right text-xs px-2 py-1 opacity-70' }, p.assists ?? 0),
+          h('td', { class: 'text-right text-xs px-2 py-1 ' + (p.penalties ? 'text-error' : 'opacity-70') }, p.penalties ?? 0),
           h('td', { class: 'text-right text-xs pl-2 py-1 font-semibold text-primary' },
             p.fantasy_points != null ? p.fantasy_points.toFixed(1) : '—'),
         ])
