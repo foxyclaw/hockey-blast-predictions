@@ -767,6 +767,7 @@ def delete_fantasy_league(league_id: int):
     from app.models.fantasy_roster import FantasyRoster
     from app.models.fantasy_draft_queue import FantasyDraftQueue
     from app.models.fantasy_standings import FantasyStandings
+    from app.models.fantasy_game_scores import FantasyGameScores
     from app.db import PredSession
 
     pred = PredSession()
@@ -777,6 +778,7 @@ def delete_fantasy_league(league_id: int):
     name = league.name
 
     # Delete all related data in order
+    pred.execute(sa_delete(FantasyGameScores).where(FantasyGameScores.league_id == league_id))
     pred.execute(sa_delete(FantasyStandings).where(FantasyStandings.league_id == league_id))
     pred.execute(sa_delete(FantasyDraftQueue).where(FantasyDraftQueue.league_id == league_id))
     pred.execute(sa_delete(FantasyRoster).where(FantasyRoster.league_id == league_id))
@@ -797,6 +799,7 @@ def batch_delete_fantasy_leagues():
     from app.models.fantasy_roster import FantasyRoster
     from app.models.fantasy_draft_queue import FantasyDraftQueue
     from app.models.fantasy_standings import FantasyStandings
+    from app.models.fantasy_game_scores import FantasyGameScores
     from app.db import PredSession
 
     data = request.get_json(silent=True) or {}
@@ -808,6 +811,7 @@ def batch_delete_fantasy_leagues():
     leagues = pred.execute(select(FantasyLeague).where(FantasyLeague.id.in_(league_ids))).scalars().all()
     names = [l.name for l in leagues]
 
+    pred.execute(sa_delete(FantasyGameScores).where(FantasyGameScores.league_id.in_(league_ids)))
     pred.execute(sa_delete(FantasyStandings).where(FantasyStandings.league_id.in_(league_ids)))
     pred.execute(sa_delete(FantasyDraftQueue).where(FantasyDraftQueue.league_id.in_(league_ids)))
     pred.execute(sa_delete(FantasyRoster).where(FantasyRoster.league_id.in_(league_ids)))
