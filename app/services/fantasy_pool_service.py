@@ -184,9 +184,67 @@ def get_player_pool(level_id: int, org_id: int = 1, league_id: int = None, seaso
     max_managers = min(12, usable // roster_skaters) if roster_skaters > 0 else 4
     max_managers = max(4, max_managers)
 
+    # ── Referee pool ─────────────────────────────────────────────────────────
+    # Scoring: ref_fantasy_pts = games_reffed * 1 + penalties_given * 1.5 + gm_given * 8
+    from hockey_blast_common_lib.stats_models import DivisionStatsReferee
+    from hockey_blast_common_lib.models import Human as HBHuman
+
+    ref_stmt = (
+        select(
+            DivisionStatsReferee.human_id,
+            func.sum(DivisionStatsReferee.games_reffed).label(games_reffed),
+            func.sum(DivisionStatsReferee.penalties_given).label(penalties_given),
+            func.sum(DivisionStatsReferee.gm_given).label(gm_given),
+        )
+        .where(DivisionStatsReferee.division_id.in_(
+            select(Division.id)
+            .join(Season, Season.id == Division.season_id)
+            .where(
+                Division.level_id == level_id,
+                Division.org_id == org_id,
+                Season.id == season_id,
+            )
+        ))
+        .where(DivisionStatsReferee.human_id.notin_(non_human_ids))
+        .group_by(DivisionStatsReferee.human_id)
+        .having(func.sum(DivisionStatsReferee.games_reffed) >= 3)
+    )
+
+    ref_rows = hb.execute(ref_stmt).all()
+
+    # Fetch ref names
+    ref_human_ids = [r.human_id for r in ref_rows]
+    ref_humans = {}
+    if ref_human_ids:
+        human_rows = hb.execute(
+            select(HBHuman).where(HBHuman.id.in_(ref_human_ids))
+        ).scalars().all()
+        ref_humans = {h.id: h for h in human_rows}
+
+    refs = []
+    for row in ref_rows:
+        gr = int(row.games_reffed or 0)
+        pg = int(row.penalties_given or 0)
+        gm = int(row.gm_given or 0)
+        fantasy_points = gr * 1.0 + pg * 1.5 + gm * 8.0
+        h = ref_humans.get(row.human_id)
+        refs.append({
+            "hb_human_id": row.human_id,
+            "first_name": h.first_name if h else "",
+            "last_name": h.last_name if h else "",
+            "games_reffed": gr,
+            "penalties_given": pg,
+            "gm_given": gm,
+            "fantasy_points": round(fantasy_points, 2),
+            "is_goalie": False,
+            "is_ref": True,
+        })
+    refs.sort(key=lambda p: p["fantasy_points"], reverse=True)
+
     return {
         "skaters": skaters,
         "goalies": goalies,
+        "refs": refs,
         "roster_skaters": roster_skaters,
         "max_managers": max_managers,
         "resolved_season_id": season_id,

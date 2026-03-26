@@ -75,7 +75,7 @@
         <!-- Stats row -->
         <div class="flex gap-6 mt-3 text-sm text-base-content/60">
           <span>👥 {{ league.manager_count }} / {{ league.max_managers }} managers</span>
-          <span>📋 {{ league.roster_skaters }} skaters + {{ league.roster_goalies }} goalie(s) per team</span>
+          <span>📋 {{ league.roster_skaters }} skaters + {{ league.roster_goalies }} goalie(s){{ league.roster_refs ? ' + ' + league.roster_refs + ' ref(s)' : '' }} per team</span>
           <span v-if="league.draft_closes_at && league.draft_opens_at">⏱ Draft: {{ formatDeadline(league.draft_opens_at) }} – {{ formatDeadline(league.draft_closes_at) }}</span>
           <span v-else>⏱ {{ league.draft_pick_hours }}h per pick</span>
         </div>
@@ -149,12 +149,16 @@
                 <!-- Skater / Goalie sub-tabs -->
                 <div class="tabs tabs-boxed tabs-xs mb-3 w-fit">
                   <button class="tab" :class="{ 'tab-active': poolTab === 'skaters' }" @click="poolTab = 'skaters'"
-                    :disabled="currentPick?.is_goalie_pick && currentPick?.user_id === myUserId">
+                    :disabled="currentPick?.is_goalie_pick || currentPick?.is_ref_pick">
                     Skaters
                   </button>
                   <button class="tab" :class="{ 'tab-active': poolTab === 'goalies' }" @click="poolTab = 'goalies'"
                     :disabled="currentPick && !currentPick?.is_goalie_pick && currentPick?.user_id === myUserId">
-                    Goalies <span v-if="currentPick?.is_goalie_pick && currentPick?.user_id === myUserId" class="badge badge-xs badge-error ml-1">Round 1!</span>
+                    Goalies <span v-if="currentPick?.is_goalie_pick && currentPick?.user_id === myUserId" class="badge badge-xs badge-error ml-1">Pick now!</span>
+                  </button>
+                  <button v-if="(pool.refs || []).length > 0" class="tab" :class="{ 'tab-active': poolTab === 'refs' }" @click="poolTab = 'refs'"
+                    :disabled="currentPick && !currentPick?.is_ref_pick && currentPick?.user_id === myUserId">
+                    🎮 Refs <span v-if="currentPick?.is_ref_pick && currentPick?.user_id === myUserId" class="badge badge-xs badge-error ml-1">Last Pick!</span>
                   </button>
                 </div>
 
@@ -253,6 +257,47 @@
                       </tr>
                       <tr v-if="filteredGoalies.length === 0">
                         <td colspan="6" class="text-center text-base-content/40 py-4">No goalies found</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Refs table -->
+                <div v-if="poolTab === 'refs'" class="overflow-x-auto max-h-80 overflow-y-auto">
+                  <table class="table table-xs w-full">
+                    <thead class="sticky top-0 bg-base-200 z-10">
+                      <tr>
+                        <th>Referee</th>
+                        <th class="text-right">Games</th>
+                        <th class="text-right">Penalties</th>
+                        <th class="text-right">GMs</th>
+                        <th class="text-right">F.Pts</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="p in filteredRefs"
+                        :key="p.hb_human_id"
+                        :class="p.drafted_by ? 'opacity-40' : 'hover'"
+                      >
+                        <td>{{ p.first_name }} {{ p.last_name }}</td>
+                        <td class="text-right">{{ p.games_reffed }}</td>
+                        <td class="text-right">{{ p.penalties_given }}</td>
+                        <td class="text-right">{{ p.gm_given }}</td>
+                        <td class="text-right font-bold text-primary">{{ p.fantasy_points }}</td>
+                        <td class="text-right">
+                          <span v-if="p.drafted_by" class="text-xs text-base-content/40">{{ p.drafted_by.team_name }}</span>
+                          <template v-else-if="currentPick && currentPick.user_id === myUserId && league.is_member && currentPick.is_ref_pick">
+                            <button class="btn btn-xs btn-primary" :disabled="picking" @click="pickPlayer(p)">Draft</button>
+                          </template>
+                          <template v-else>
+                            <button class="btn btn-xs btn-disabled" disabled>Draft</button>
+                          </template>
+                        </td>
+                      </tr>
+                      <tr v-if="filteredRefs.length === 0">
+                        <td colspan="6" class="text-center text-base-content/40 py-4">No referees found</td>
                       </tr>
                     </tbody>
                   </table>
@@ -452,7 +497,7 @@ const RosterList = {
       ])
 
       const rows = roster.value.map(p => {
-        const icon = p.is_goalie ? '🥅' : '🏒'
+        const icon = p.is_ref ? '🎮' : p.is_goalie ? '🥅' : '🏒'
         const liveChip = p.is_live
           ? h('span', { class: 'inline-flex items-center gap-1 ml-1' }, [
               h('span', { class: 'w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block' }),
@@ -496,7 +541,7 @@ const userStore = useUserStore()
 const league = ref(null)
 const loading = ref(true)
 const draftQueue = ref([])
-const pool = ref({ skaters: [], goalies: [] })
+const pool = ref({ skaters: [], goalies: [], refs: [] })
 const standings = ref([])
 const standingsLoading = ref(false)
 
@@ -544,6 +589,15 @@ const positionFilter = ref('')
 const picking = ref(false)
 const pickError = ref('')
 const poolTab = ref('skaters')
+// Auto-switch pool tab based on current pick type
+watch(() => currentPick.value, (pick) => {
+  if (!pick) return
+  if (pick.user_id === myUserId.value) {
+    if (pick.is_goalie_pick) poolTab.value = 'goalies'
+    else if (pick.is_ref_pick) poolTab.value = 'refs'
+    else poolTab.value = 'skaters'
+  }
+}, { immediate: true })
 const sortKey = ref('fantasy_points')
 const sortDir = ref('desc')
 
@@ -566,9 +620,9 @@ const myDraftedRoster = computed(() => {
 
 const myDraftedSkaters = computed(() =>
   myDraftedRoster.value.filter(p => {
-    const player = [...(pool.value.skaters || []), ...(pool.value.goalies || [])]
+    const player = [...(pool.value.skaters || []), ...(pool.value.goalies || []), ...(pool.value.refs || [])]
       .find(pl => pl.hb_human_id === p.hb_human_id)
-    return player && !player.is_goalie
+    return player && !player.is_goalie && !player.is_ref
   }).length
 )
 
@@ -579,6 +633,27 @@ const myDraftedGoalies = computed(() =>
     return player && player.is_goalie
   }).length
 )
+
+const myDraftedRefs = computed(() =>
+  myDraftedRoster.value.filter(p => {
+    const player = (pool.value.refs || []).find(pl => pl.hb_human_id === p.hb_human_id)
+    return !!player
+  }).length
+)
+
+const filteredRefs = computed(() => {
+  const drafted = new Set(draftQueue.value.filter(p => p.picked_at).map(p => p.hb_human_id))
+  const managers = {}
+  // Build manager name map from standings
+  for (const s of standings.value) managers[s.user_id] = s
+  return (pool.value.refs || []).map(p => {
+    if (drafted.has(p.hb_human_id)) {
+      const pick = draftQueue.value.find(q => q.hb_human_id === p.hb_human_id && q.picked_at)
+      return { ...p, drafted_by: pick ? { team_name: managers[pick.user_id]?.team_name || 'Someone' } : { team_name: '?' } }
+    }
+    return { ...p, drafted_by: null }
+  })
+})
 
 // True when it's my turn AND I must pick a goalie (last pick(s) need to fill goalie slot)
 const mustPickGoalie = computed(() => {

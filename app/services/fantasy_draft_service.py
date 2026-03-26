@@ -114,7 +114,7 @@ def build_draft_queue(league_id: int) -> None:
         raise ValueError("No managers in league")
 
     n = len(managers)
-    total_rounds = league.roster_skaters + league.roster_goalies
+    total_rounds = league.roster_skaters + league.roster_goalies + league.roster_refs
     total_picks = n * total_rounds
 
     # Compute pick_hours dynamically from the draft window so the draft
@@ -134,9 +134,12 @@ def build_draft_queue(league_id: int) -> None:
 
     overall = 1
     entries = []
-    # Round 1 = goalie picks; remaining rounds = skater picks
+    # Round 1 = goalie picks; last round = ref picks; remaining = skater picks
+    goalie_round = 1
+    ref_round = total_rounds if league.roster_refs > 0 else None
     for rnd in range(1, total_rounds + 1):
-        is_goalie_round = (rnd == 1)
+        is_goalie_round = (rnd == goalie_round)
+        is_ref_round = (rnd == ref_round)
         # Snake: odd rounds forward, even rounds reverse
         if rnd % 2 == 1:
             order = list(range(n))
@@ -154,6 +157,7 @@ def build_draft_queue(league_id: int) -> None:
                 "hb_human_id": None,
                 "is_skipped": False,
                 "is_goalie_pick": is_goalie_round,
+                "is_ref_pick": is_ref_round or False,
                 "deadline": None,
                 "picked_at": None,
             })
@@ -238,7 +242,7 @@ def advance_draft(league_id: int) -> None:
     # Timeout — auto-pick best available
     best = _best_available(league_id, current.user_id, pred, league)
     if best is not None:
-        _record_pick(league_id, current, best["hb_human_id"], best["is_goalie"], pred, now)
+        _record_pick(league_id, current, best["hb_human_id"], best["is_goalie"], pred, now, is_ref=best.get("is_ref", False))
 
         # Notify the manager that we picked for them (immediate SMS)
         _notify_manager(
@@ -305,20 +309,24 @@ def make_pick(league_id: int, user_id: int, hb_human_id: int) -> dict:
     # Determine if goalie
     pool = _get_pool(league_id)
     player_info = next(
-        (p for p in pool["skaters"] + pool["goalies"] if p["hb_human_id"] == hb_human_id),
+        (p for p in pool["skaters"] + pool["goalies"] + pool.get("refs", []) if p["hb_human_id"] == hb_human_id),
         None,
     )
     if player_info is None:
         raise ValueError("Player not in eligible pool for this league")
 
-    # Enforce pick type — round 1 is goalie-only, all others are skater-only
+    # Enforce pick type
     if current.is_goalie_pick and not player_info["is_goalie"]:
-        raise ValueError("Round 1 is goalie picks only — please select a goalie")
-    if not current.is_goalie_pick and player_info["is_goalie"]:
-        raise ValueError("Goalies can only be picked in Round 1")
+        raise ValueError("This is a goalie pick — please select a goalie")
+    if current.is_ref_pick and not player_info.get("is_ref"):
+        raise ValueError("This is a referee pick — please select a referee")
+    if not current.is_goalie_pick and not current.is_ref_pick and player_info["is_goalie"]:
+        raise ValueError("Goalies can only be picked in the goalie round")
+    if not current.is_goalie_pick and not current.is_ref_pick and player_info.get("is_ref"):
+        raise ValueError("Referees can only be picked in the referee round")
 
     now = datetime.now(timezone.utc)
-    _record_pick(league_id, current, hb_human_id, player_info["is_goalie"], pred, now)
+    _record_pick(league_id, current, hb_human_id, player_info["is_goalie"], pred, now, is_ref=player_info.get("is_ref", False))
 
     # Clear this user's draft notifications now that they've picked
     _clear_stale_draft_notifications(user_id, league_id, pred)
@@ -334,7 +342,7 @@ def make_pick(league_id: int, user_id: int, hb_human_id: int) -> dict:
     return current.to_dict()
 
 
-def _record_pick(league_id, slot, hb_human_id, is_goalie, pred, now) -> None:
+def _record_pick(league_id, slot, hb_human_id, is_goalie, pred, now, is_ref=False) -> None:
     slot.hb_human_id = hb_human_id
     slot.picked_at = now
 
@@ -343,6 +351,7 @@ def _record_pick(league_id, slot, hb_human_id, is_goalie, pred, now) -> None:
         user_id=slot.user_id,
         hb_human_id=hb_human_id,
         is_goalie=is_goalie,
+        is_ref=is_ref,
         round_picked=slot.round,
         pick_number=slot.overall_pick,
         drafted_at=now,
@@ -370,10 +379,14 @@ def _best_available(league_id: int, user_id: int, pred, league) -> dict | None:
 
     needs_goalie = goalie_count < league.roster_goalies
     needs_skater = skater_count < league.roster_skaters
+    ref_count = sum(1 for r in manager_roster if r.is_ref)
+    needs_ref = ref_count < league.roster_refs
 
     candidates = []
     if needs_goalie:
         candidates += [p for p in pool["goalies"] if p["hb_human_id"] not in drafted_ids]
+    if needs_ref:
+        candidates += [p for p in pool.get("refs", []) if p["hb_human_id"] not in drafted_ids]
     if needs_skater:
         candidates += [p for p in pool["skaters"] if p["hb_human_id"] not in drafted_ids]
 
