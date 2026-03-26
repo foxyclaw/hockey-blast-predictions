@@ -961,7 +961,7 @@ function applyTestMode() {
   launchDraftCloses.value = fmt(closes)
   launchStartDate.value = fmt(season)
   launchMaxManagers.value = 2
-  launchSeasonLabel.value = 'Test ' + now.toLocaleDateString()
+  const rand = Math.random().toString(36).slice(2,5).toUpperCase(); launchSeasonLabel.value = 'Test ' + rand + ' ' + now.toLocaleDateString()
 }
 
 async function launchSeason() {
