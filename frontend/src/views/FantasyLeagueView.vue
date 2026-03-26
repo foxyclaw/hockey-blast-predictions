@@ -32,6 +32,15 @@
             <span class="badge" :class="statusBadgeClass(league.status)">
               {{ statusLabel(league.status) }}
             </span>
+            <!-- Share button for active/completed leagues -->
+            <button
+              v-if="['active', 'completed'].includes(league.status)"
+              class="btn btn-outline btn-xs"
+              @click="copyLeagueLink"
+              :title="linkCopied ? 'Link copied!' : 'Share league link'"
+            >
+              {{ linkCopied ? '✅ Copied!' : '🔗 Share' }}
+            </button>
             <!-- Join button -->
             <button
               v-if="!league.is_member && ['forming', 'draft_open'].includes(league.status)"
@@ -254,8 +263,8 @@
             </div>
           </div>
 
-          <!-- Draft progress summary -->
-          <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+          <!-- Draft progress summary (only shown during draft) -->
+          <div v-if="['draft_open', 'drafting'].includes(league.status)" class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
             <div class="bg-base-200 rounded-lg p-3">
               <div class="text-2xl font-bold text-success">{{ draftQueue.filter(p => p.picked_at).length }}</div>
               <div class="text-xs text-base-content/50 mt-0.5">Picks Made</div>
@@ -505,6 +514,16 @@ const joinError = ref('')
 const joinForm = ref({ team_name: '', join_code: '' })
 
 const openingDraft = ref(false)
+const linkCopied = ref(false)
+async function copyLeagueLink() {
+  try {
+    await navigator.clipboard.writeText(window.location.href)
+    linkCopied.value = true
+    setTimeout(() => { linkCopied.value = false }, 2500)
+  } catch {
+    // fallback: select URL bar
+  }
+}
 const startingSeason = ref(false)
 
 const playerFilter = ref('')
