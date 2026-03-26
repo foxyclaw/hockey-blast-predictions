@@ -269,7 +269,7 @@
               <div class="text-xs text-base-content/50 mt-0.5">Current Round</div>
             </div>
             <div class="bg-base-200 rounded-lg p-3">
-              <div class="text-2xl font-bold text-primary">{{ league.max_managers && league.roster_skaters ? (league.roster_skaters + league.roster_goalies) - (currentPick ? currentPick.round - 1 : 0) : '—' }}</div>
+              <div class="text-2xl font-bold text-primary">{{ ['active','completed'].includes(league.status) && !currentPick ? 0 : (league.max_managers && league.roster_skaters ? (league.roster_skaters + league.roster_goalies) - (currentPick ? currentPick.round - 1 : 0) : '—') }}</div>
               <div class="text-xs text-base-content/50 mt-0.5">Rounds Left</div>
             </div>
           </div>
