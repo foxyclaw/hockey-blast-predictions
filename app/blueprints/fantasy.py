@@ -312,6 +312,12 @@ def create_league():
             if not val:
                 return None
             from datetime import timezone as _tz
+            # Normalize Z suffix for broad compatibility
+            normalized = val.replace("Z", "+00:00")
+            try:
+                return datetime.fromisoformat(normalized)
+            except ValueError:
+                pass
             for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
                 try:
                     dt = datetime.strptime(val, fmt)
