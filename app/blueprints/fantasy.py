@@ -282,6 +282,9 @@ def create_league():
     roster_skaters = pool_info["roster_skaters"]
     max_managers = pool_info["max_managers"]
 
+    if max_managers < 2:
+        return error_response("VALIDATION_ERROR", "Not enough players at this level to form a league", 400)
+
     # Allow user to set a lower cap (but never exceed the pool-calculated max)
     override = data.get("max_managers_override")
     if override is not None:
@@ -291,9 +294,6 @@ def create_league():
                 max_managers = override
         except (ValueError, TypeError):
             pass
-
-    if max_managers < 4:
-        return error_response("VALIDATION_ERROR", "Not enough players at this level to form a league (need 4+ managers worth of players)", 400)
 
     # draft_closes_at is mandatory — the entire deadline system depends on it
     if not data.get("draft_closes_at"):
