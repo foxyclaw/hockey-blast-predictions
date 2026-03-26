@@ -309,7 +309,7 @@ def make_pick(league_id: int, user_id: int, hb_human_id: int) -> dict:
     # Determine if goalie
     pool = _get_pool(league_id)
     player_info = next(
-        (p for p in pool["skaters"] + pool["goalies"] + pool.get("refs", []) if p["hb_human_id"] == hb_human_id),
+        (p for p in pool["goalies"] + pool.get("refs", []) + pool["skaters"] if p["hb_human_id"] == hb_human_id),
         None,
     )
     if player_info is None:
