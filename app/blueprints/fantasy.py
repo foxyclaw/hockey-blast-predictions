@@ -338,6 +338,7 @@ def create_league():
             max_managers=max_managers,
             roster_skaters=roster_skaters,
             roster_goalies=1,
+            roster_refs=1,
             draft_pick_hours=data.get("draft_pick_hours", 24),
             created_by=user.id,
             is_private=is_private,
@@ -650,6 +651,7 @@ def get_pool(league_id: int):
 
     all_skaters = [enrich_drafted(p) for p in pool["skaters"]]
     all_goalies = [enrich_drafted(p) for p in pool["goalies"]]
+    all_refs = [enrich_drafted(p) for p in pool.get("refs", [])]
 
     # Sort: skaters by fantasy_ppg DESC, goalies by fantasy_points DESC
     all_skaters.sort(key=lambda p: p.get("fantasy_ppg", 0), reverse=True)
@@ -663,6 +665,7 @@ def get_pool(league_id: int):
     return jsonify({
         "skaters": all_skaters,
         "goalies": all_goalies,
+        "refs": all_refs,
     })
 
 

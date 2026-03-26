@@ -27,6 +27,7 @@ class FantasyLeague(PredBase):
     max_managers: Mapped[int] = mapped_column(Integer, nullable=False)
     roster_skaters: Mapped[int] = mapped_column(Integer, nullable=False)
     roster_goalies: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    roster_refs: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     draft_pick_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
     settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_by: Mapped[int | None] = mapped_column(Integer, sa.ForeignKey("pred_users.id"), nullable=True)
@@ -70,6 +71,7 @@ class FantasyLeague(PredBase):
             "max_managers": self.max_managers,
             "roster_skaters": self.roster_skaters,
             "roster_goalies": self.roster_goalies,
+            "roster_refs": self.roster_refs,
             "draft_pick_hours": self.draft_pick_hours,
             "settings": self.settings,
             "created_by": self.created_by,

@@ -24,6 +24,10 @@ from app.models.fantasy_standings import FantasyStandings
 logger = logging.getLogger(__name__)
 
 GOAL_PTS = 3.0
+# Ref scoring
+REF_GAME_PTS = 1.0
+REF_PENALTY_PTS = 1.5
+REF_GM_PTS = 8.0
 ASSIST_PTS = 2.0
 GAME_PLAYED_PTS = 1.0
 PENALTY_PTS = -0.5
@@ -31,7 +35,8 @@ GOALIE_WIN_PTS = 5.0
 SHUTOUT_BONUS = 3.0
 
 
-def _compute_points(goals, assists, penalties, games_played, is_goalie_win, is_shutout) -> float:
+def _compute_points(goals, assists, penalties, games_played, is_goalie_win, is_shutout,
+                    ref_games=0, ref_penalties=0, ref_gm=0) -> float:
     pts = 0.0
     pts += goals * GOAL_PTS
     pts += assists * ASSIST_PTS
@@ -41,6 +46,10 @@ def _compute_points(goals, assists, penalties, games_played, is_goalie_win, is_s
         pts += GOALIE_WIN_PTS
     if is_shutout:
         pts += SHUTOUT_BONUS
+    # Ref scoring
+    pts += ref_games * REF_GAME_PTS
+    pts += ref_penalties * REF_PENALTY_PTS
+    pts += ref_gm * REF_GM_PTS
     return pts
 
 
@@ -131,11 +140,65 @@ def score_game(league_id: int, game_id: int) -> None:
     except Exception as e:
         logger.warning("score_game: could not query goalie data for game %d: %s", game_id, e)
 
+    # ── Referee stats for this game ──────────────────────────────────────────
+    ref_stats: dict[int, dict] = {}
+    try:
+        ref_rows = hb.execute(
+            text("SELECT human_id FROM ref_divisions WHERE game_id = :gid"),
+            {"gid": game_id},
+        ).fetchall()
+        for r in ref_rows:
+            if r.human_id not in ref_stats:
+                ref_stats[r.human_id] = {"games": 1, "penalties": 0, "gm": 0}
+        # Count penalties called by each ref in this game
+        ref_pen_rows = hb.execute(
+            text("""SELECT referee_id,
+                    COUNT(*) AS cnt,
+                    SUM(CASE WHEN LOWER(penalty_type) LIKE '%game misconduct%' THEN 1 ELSE 0 END) AS gm_cnt
+                    FROM penalties WHERE game_id = :gid AND referee_id IS NOT NULL
+                    GROUP BY referee_id"""),
+            {"gid": game_id},
+        ).fetchall()
+        for r in ref_pen_rows:
+            if r.referee_id in ref_stats:
+                ref_stats[r.referee_id]["penalties"] = int(r.cnt or 0)
+                ref_stats[r.referee_id]["gm"] = int(r.gm_cnt or 0)
+    except Exception as e:
+        logger.debug("score_game: ref stats unavailable for game %d: %s", game_id, e)
+
     now = datetime.now(timezone.utc)
     scored = 0
 
     # ── Score each rostered player who was in this game ───────────────────────
     for hb_human_id, roster_entry in rostered_ids.items():
+        # Refs score from ref_stats, not game_rosters
+        if roster_entry.is_ref:
+            if hb_human_id not in ref_stats:
+                continue
+            rs = ref_stats[hb_human_id]
+            pts = _compute_points(
+                goals=0, assists=0, penalties=0, games_played=0,
+                is_goalie_win=False, is_shutout=False,
+                ref_games=rs["games"], ref_penalties=rs["penalties"], ref_gm=rs["gm"],
+            )
+            stmt = pg_insert(FantasyGameScores).values(
+                league_id=league_id,
+                user_id=roster_entry.user_id,
+                hb_human_id=hb_human_id,
+                game_id=game_id,
+                goals=0, assists=0, penalties=0, games_played=0,
+                is_goalie_win=False, is_shutout=False,
+                ref_games=rs["games"], ref_penalties=rs["penalties"], ref_gm=rs["gm"],
+                points=pts, scored_at=now,
+            ).on_conflict_do_update(
+                constraint="uq_fantasy_game_scores_league_human_game",
+                set_={"ref_games": rs["games"], "ref_penalties": rs["penalties"],
+                      "ref_gm": rs["gm"], "points": pts, "scored_at": now}
+            )
+            pred.execute(stmt)
+            scored += 1
+            continue
+
         if hb_human_id not in participants:
             continue  # player didn't appear in this game
 
