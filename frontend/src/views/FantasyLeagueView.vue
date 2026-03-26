@@ -161,7 +161,7 @@
                     :disabled="currentPick && !currentPick?.is_goalie_pick && currentPick?.user_id === myUserId">
                     Goalies <span v-if="currentPick?.is_goalie_pick && currentPick?.user_id === myUserId" class="badge badge-xs badge-error ml-1">Pick now!</span>
                   </button>
-                  <button v-if="(pool.refs || []).length > 0" class="tab" :class="{ 'tab-active': poolTab === 'refs' }" @click="poolTab = 'refs'"
+                  <button v-if="league.roster_refs > 0" class="tab" :class="{ 'tab-active': poolTab === 'refs' }" @click="poolTab = 'refs'"
                     :disabled="currentPick && !currentPick?.is_ref_pick && currentPick?.user_id === myUserId">
                     🎮 Refs <span v-if="currentPick?.is_ref_pick && currentPick?.user_id === myUserId" class="badge badge-xs badge-error ml-1">Last Pick!</span>
                   </button>
@@ -885,7 +885,7 @@ watch(currentPick, (pick) => {
   if (pick.is_goalie_pick) poolTab.value = 'goalies'
   else if (pick.is_ref_pick) poolTab.value = 'refs'
   else poolTab.value = 'skaters'
-})
+}, { immediate: true })
 
 onMounted(async () => {
   await loadLeague()
