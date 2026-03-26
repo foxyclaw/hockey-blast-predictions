@@ -229,7 +229,8 @@
                         <th class="text-right">GP</th>
                         <th class="text-right">GAA</th>
                         <th class="text-right">SV%</th>
-                        <th class="text-right">F.Pts</th>
+                        <th class="text-right">FP</th>
+                        <th class="text-right">FPPG</th>
                         <th></th>
                       </tr>
                     </thead>
@@ -243,7 +244,8 @@
                         <td class="text-right">{{ p.games_played }}</td>
                         <td class="text-right">{{ p.goals_against_avg ?? '—' }}</td>
                         <td class="text-right">{{ p.save_percentage != null ? (p.save_percentage * 100).toFixed(1) + '%' : '—' }}</td>
-                        <td class="text-right font-bold text-primary">{{ p.fantasy_points }}</td>
+                        <td class="text-right font-bold text-primary">{{ p.fantasy_points_goalie ?? p.fantasy_points }}</td>
+                        <td class="text-right text-base-content/60">{{ p.goalie_games > 0 ? ((p.fantasy_points_goalie ?? p.fantasy_points) / p.goalie_games).toFixed(2) : '—' }}</td>
                         <td class="text-right">
                           <span v-if="p.drafted_by" class="text-xs text-base-content/40">{{ p.drafted_by.team_name }}</span>
                           <template v-else-if="currentPick && currentPick.user_id === myUserId && league.is_member">
@@ -261,7 +263,7 @@
                         </td>
                       </tr>
                       <tr v-if="filteredGoalies.length === 0">
-                        <td colspan="6" class="text-center text-base-content/40 py-4">No goalies found</td>
+                        <td colspan="7" class="text-center text-base-content/40 py-4">No goalies found</td>
                       </tr>
                     </tbody>
                   </table>
@@ -276,7 +278,8 @@
                         <th class="text-right">Games</th>
                         <th class="text-right">Penalties</th>
                         <th class="text-right">GMs</th>
-                        <th class="text-right">F.Pts</th>
+                        <th class="text-right">FP</th>
+                        <th class="text-right">FPPG</th>
                         <th></th>
                       </tr>
                     </thead>
@@ -290,7 +293,8 @@
                         <td class="text-right">{{ p.games_reffed }}</td>
                         <td class="text-right">{{ p.penalties_given }}</td>
                         <td class="text-right">{{ p.gm_given }}</td>
-                        <td class="text-right font-bold text-primary">{{ p.fantasy_points }}</td>
+                        <td class="text-right font-bold text-primary">{{ p.fantasy_points_ref ?? p.fantasy_points }}</td>
+                        <td class="text-right text-base-content/60">{{ p.games_reffed > 0 ? ((p.fantasy_points_ref ?? p.fantasy_points) / p.games_reffed).toFixed(2) : '—' }}</td>
                         <td class="text-right">
                           <span v-if="p.drafted_by" class="text-xs text-base-content/40">{{ p.drafted_by.team_name }}</span>
                           <template v-else-if="currentPick && currentPick.user_id === myUserId && league.is_member && currentPick.is_ref_pick">
@@ -302,13 +306,14 @@
                         </td>
                       </tr>
                       <tr v-if="filteredRefs.length === 0">
-                        <td colspan="6" class="text-center text-base-content/40 py-4">No referees found</td>
+                        <td colspan="7" class="text-center text-base-content/40 py-4">No referees found</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
 
                 <div v-if="pickError" class="text-error text-xs mt-2">{{ pickError }}</div>
+                <div class="text-xs text-base-content/30 mt-2">FP = Fantasy Points &nbsp;·&nbsp; FPPG = Fantasy Points Per Game</div>
               </div>
             </div>
           </div>
