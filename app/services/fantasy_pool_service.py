@@ -192,9 +192,9 @@ def get_player_pool(level_id: int, org_id: int = 1, league_id: int = None, seaso
     ref_stmt = (
         select(
             DivisionStatsReferee.human_id,
-            func.sum(DivisionStatsReferee.games_reffed).label(games_reffed),
-            func.sum(DivisionStatsReferee.penalties_given).label(penalties_given),
-            func.sum(DivisionStatsReferee.gm_given).label(gm_given),
+            func.sum(DivisionStatsReferee.games_reffed).label("games_reffed"),
+            func.sum(DivisionStatsReferee.penalties_given).label("penalties_given"),
+            func.sum(DivisionStatsReferee.gm_given).label("gm_given"),
         )
         .where(DivisionStatsReferee.division_id.in_(
             select(Division.id)
