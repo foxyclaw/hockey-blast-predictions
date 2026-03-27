@@ -278,7 +278,7 @@ const createForm = ref({
   hb_league_id: null,
   level_id: null,
   team_name: '',
-  is_private: false,
+  is_private: true,
   season_label: '',
   season_starts_at: '',
   draft_opens_at: '',
@@ -420,7 +420,7 @@ async function openCreateModal() {
     hb_league_id: null,
     level_id: null,
     team_name: '',
-    is_private: false,
+    is_private: true,
     season_label: '',
     season_starts_at: '',
     draft_opens_at: '',
@@ -474,7 +474,7 @@ async function createLeague() {
       router.push(`/fantasy/${data.id}`)
     }
     createForm.value = {
-      hb_league_id: null, level_id: null, team_name: '', is_private: false,
+      hb_league_id: null, level_id: null, team_name: '', is_private: true,
       season_label: '', season_starts_at: '', draft_opens_at: '', draft_closes_at: '', max_managers: null,
     }
   } catch (e) {
