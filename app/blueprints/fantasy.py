@@ -237,6 +237,7 @@ def get_level_pool():
         return jsonify({"max_managers": 12, "roster_skaters": 8})  # fallback
 
 @fantasy_bp.route("/league-by-code/<string:code>", methods=["GET"])
+@require_auth
 def get_league_by_code(code: str):
     """GET /api/fantasy/league-by-code/<code> — look up a private league by join code."""
     from app.models.fantasy_league import FantasyLeague
