@@ -1,6 +1,6 @@
 <template>
   <div class="navbar bg-base-300 shadow-lg sticky top-0 z-50 border-b border-base-content/10 px-2">
-    <div class="navbar-start w-auto shrink-0 gap-1">
+    <div class="navbar-start w-auto shrink-0 gap-1 flex-none">
       <RouterLink to="/" class="btn btn-ghost text-xl font-bold tracking-tight">
         🏒 <span class="text-primary font-bold">HB</span>
       </RouterLink>
@@ -44,7 +44,7 @@
     </div>
     <HelpButton ref="helpButtonRef" />
 
-    <div class="navbar-end gap-2 w-auto shrink-0">
+    <div class="navbar-end gap-2 flex-1 justify-end">
       <!-- Balance badge -->
       <div v-if="isFullyAuthenticated && !isLoading" class="badge badge-outline badge-primary font-mono text-xs hidden sm:flex">
         💰 {{ balance.toLocaleString() }} pts
