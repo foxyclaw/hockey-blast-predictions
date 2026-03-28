@@ -59,16 +59,7 @@
               <span v-if="openingDraft" class="loading loading-spinner loading-xs"></span>
               Open Draft
             </button>
-            <!-- Start season -->
-            <button
-              v-if="league.is_creator && ['drafting', 'draft_open'].includes(league.status)"
-              class="btn btn-success btn-sm"
-              :disabled="startingSeason"
-              @click="startSeason"
-            >
-              <span v-if="startingSeason" class="loading loading-spinner loading-xs"></span>
-              Start Season
-            </button>
+            
           </div>
         </div>
 
