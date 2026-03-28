@@ -714,11 +714,23 @@ def list_fantasy_leagues():
         ).all()
         mgr_counts = {r.league_id: r.cnt for r in rows}
 
+    # Batch creator display names
+    creator_ids = {l.created_by for l in leagues if l.created_by}
+    creator_names = {}
+    if creator_ids:
+        from app.models.pred_user import PredUser
+        rows = pred.execute(
+            select(PredUser.id, PredUser.display_name, PredUser.email)
+            .where(PredUser.id.in_(creator_ids))
+        ).all()
+        creator_names = {r.id: r.display_name or r.email or str(r.id) for r in rows}
+
     def league_dict(l):
         d = l.to_dict()
         d["hb_league_name"] = hb_league_names.get(l.hb_league_id) if l.hb_league_id else None
         d["hb_season_name"] = hb_season_names.get(l.hb_season_id) if l.hb_season_id else None
         d["manager_count"] = mgr_counts.get(l.id, 0)
+        d["creator_name"] = creator_names.get(l.created_by) if l.created_by else None
         return d
 
     return jsonify({"leagues": [league_dict(l) for l in leagues]})
