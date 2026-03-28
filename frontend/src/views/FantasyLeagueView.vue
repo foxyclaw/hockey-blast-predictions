@@ -195,7 +195,7 @@
                             <button class="btn btn-xs btn-disabled" title="Not your turn" disabled>Draft</button>
                           </template>
                         </td>
-                        <td class="max-w-[120px] truncate">{{ p.first_name }} {{ p.last_name }}</td>
+                        <td>{{ p.first_name }} {{ p.last_name }}</td>
                         <td class="text-right hidden sm:table-cell">{{ p.games_played }}</td>
                         <td class="text-right hidden sm:table-cell">{{ p.goals }}</td>
                         <td class="text-right hidden sm:table-cell">{{ p.assists }}</td>
