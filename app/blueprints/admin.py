@@ -782,6 +782,14 @@ def update_fantasy_league(league_id: int):
             league.status = "draft_open"
             if not league.draft_opens_at:
                 league.draft_opens_at = now
+            pred.commit()
+            # Build the draft queue now that the league is open
+            try:
+                from app.services.fantasy_draft_service import build_draft_queue
+                build_draft_queue(league_id)
+            except Exception as qe:
+                import logging
+                logging.getLogger(__name__).warning("Failed to build draft queue for league %d: %s", league_id, qe)
 
     try:
         pred.commit()
