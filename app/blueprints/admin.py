@@ -754,7 +754,7 @@ def update_fantasy_league(league_id: int):
     if not league:
         return jsonify({"error": "NOT_FOUND", "message": "League not found"}), 404
 
-    EDITABLE = ("season_starts_at", "draft_opens_at", "draft_closes_at", "season_label", "name", "hb_season_id")
+    EDITABLE = ("season_starts_at", "draft_opens_at", "draft_closes_at", "season_label", "name", "hb_season_id", "max_managers")
     DATETIME_FIELDS = {"season_starts_at", "draft_opens_at", "draft_closes_at"}
 
     for field in EDITABLE:
