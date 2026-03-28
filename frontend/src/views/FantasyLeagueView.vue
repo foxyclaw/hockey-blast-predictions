@@ -216,10 +216,10 @@
                   <table class="table table-xs w-full">
                     <thead class="sticky top-0 bg-base-200 z-10">
                       <tr>
+                        <th></th>
                         <th>Player</th>
                         <th class="text-right">GP</th>
                         <th class="text-right">GAA</th>
-                        <th></th>
                         <th class="text-right">SV%</th>
                         <th class="text-right">FP</th>
                         <th class="text-right">FPPG</th>
