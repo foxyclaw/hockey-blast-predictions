@@ -493,6 +493,10 @@ async function submitJoinCode() {
   joinCodeError.value = ''
   const code = joinCodeEntry.value.trim().toUpperCase()
   if (code.length < 6) return
+  if (!isAuthenticated.value) {
+    loginWithRedirect()
+    return
+  }
   try {
     const { data } = await api.get(`/api/fantasy/league-by-code/${code}`)
     showJoinCodeEntry.value = false
