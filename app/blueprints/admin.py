@@ -769,6 +769,16 @@ def update_fantasy_league(league_id: int):
         else:
             setattr(league, field, data[field] or None)
 
+    # Auto-transition to draft_open if max_managers set to <= current manager count
+    if (league.status == "forming"
+            and league.max_managers is not None
+            and league.manager_count >= league.max_managers):
+        from datetime import datetime, timezone as _tz
+        now = datetime.now(_tz.utc)
+        league.status = "draft_open"
+        if not league.draft_opens_at:
+            league.draft_opens_at = now
+
     try:
         pred.commit()
         pred.refresh(league)
