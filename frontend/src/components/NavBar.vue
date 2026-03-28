@@ -2,11 +2,11 @@
   <div class="navbar bg-base-300 shadow-lg sticky top-0 z-50 border-b border-base-content/10 px-2">
     <div class="navbar-start w-auto shrink-0 gap-1">
       <RouterLink to="/" class="btn btn-ghost text-xl font-bold tracking-tight">
-        🏒 <span class="text-primary">HB</span><span class="text-base-content/80">Picks</span>
+        🏒 <span class="text-primary font-bold">HB</span>
       </RouterLink>
       <span class="text-base-content/20">|</span>
       <a href="https://hockey-blast.com" class="btn btn-ghost font-bold tracking-tight text-sm sm:text-xl">
-        🏒 <span class="text-base-content/30">HB</span><span class="text-base-content/20">Stats</span>
+        <span class="text-base-content/30 text-xs">Stats</span>
       </a>
     </div>
 
