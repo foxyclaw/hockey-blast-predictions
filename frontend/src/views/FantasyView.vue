@@ -48,7 +48,7 @@
           >
             <div class="card-body p-4">
               <div class="flex items-start justify-between gap-2 cursor-pointer" @click="$router.push(`/fantasy/${league.id}`)">
-                <div>
+                <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
                     <h3 class="font-bold text-base">{{ league.name }}</h3>
                     <span v-if="league.is_private" class="badge badge-xs badge-neutral gap-1">🔒 Private</span>
@@ -60,7 +60,7 @@
                     <span v-if="league.season_label">📅 {{ league.season_label }}</span>
                   </p>
                 </div>
-                <span class="badge badge-sm" :class="statusBadgeClass(league.status)">
+                <span class="badge badge-sm shrink-0" :class="statusBadgeClass(league.status)">
                   {{ statusLabel(league.status) }}
                 </span>
               </div>
