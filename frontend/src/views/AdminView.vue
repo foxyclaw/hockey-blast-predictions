@@ -496,6 +496,10 @@
                             <option v-for="s in hbSeasons" :key="s.id" :value="s.id">{{ s.season_name }} ({{ s.start_date }} → {{ s.end_date }})</option>
                           </select>
                         </div>
+                        <div class="form-control">
+                          <label class="label py-0"><span class="label-text text-xs">Max Managers</span></label>
+                          <input v-model.number="leagueEditForm.max_managers" type="number" min="2" max="20" class="input input-bordered input-xs w-20" placeholder="e.g. 8" />
+                        </div>
                         <div class="flex gap-2 mt-4">
                           <button class="btn btn-xs btn-primary" :disabled="leagueEditSaving" @click="saveLeagueEdit(l.id)">
                             <span v-if="leagueEditSaving" class="loading loading-spinner loading-xs"></span>
@@ -829,7 +833,7 @@ const deleteResult = ref(null)
 
 // ── Inline league edit ───────────────────────────────────────────────────────
 const editingLeagueId = ref(null)
-const leagueEditForm = ref({ season_label: '', season_starts_at: '', draft_opens_at: '', draft_closes_at: '', hb_season_id: null })
+const leagueEditForm = ref({ season_label: '', season_starts_at: '', draft_opens_at: '', draft_closes_at: '', hb_season_id: null, max_managers: null })
 const hbSeasons = ref([])
 const leagueEditSaving = ref(false)
 const leagueEditError = ref(null)
@@ -861,6 +865,7 @@ function openLeagueEdit(league) {
     draft_opens_at: toLocalDtInput(league.draft_opens_at),
     draft_closes_at: toLocalDtInput(league.draft_closes_at),
     hb_season_id: league.hb_season_id || null,
+    max_managers: league.max_managers || null,
   }
   editingLeagueId.value = league.id
 }
@@ -883,6 +888,7 @@ async function saveLeagueEdit(leagueId) {
       draft_opens_at: leagueEditForm.value.draft_opens_at ? new Date(leagueEditForm.value.draft_opens_at).toISOString() : null,
       draft_closes_at: leagueEditForm.value.draft_closes_at ? new Date(leagueEditForm.value.draft_closes_at).toISOString() : null,
       hb_season_id: leagueEditForm.value.hb_season_id || null,
+      max_managers: leagueEditForm.value.max_managers ? parseInt(leagueEditForm.value.max_managers) : null,
     })
     // Update in-place
     const idx = adminLeagues.value.findIndex(l => l.id === leagueId)
