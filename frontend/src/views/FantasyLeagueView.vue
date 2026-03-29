@@ -400,7 +400,14 @@
                 </div>
                 <div class="flex items-center gap-1">
                   <span v-if="game.game_type" class="badge badge-xs badge-outline">{{ game.game_type }}</span>
-                  <span class="badge badge-xs" :class="{
+                  <span
+                    v-if="game.status === 'OPEN'"
+                    class="inline-flex items-center gap-1 badge badge-xs badge-success animate-pulse"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full bg-white inline-block"></span>
+                    LIVE
+                  </span>
+                  <span v-else class="badge badge-xs" :class="{
                     'badge-success': game.status && game.status.startsWith('Final'),
                     'badge-warning': game.status === 'Scheduled',
                     'badge-info': game.status && game.status.toLowerCase().includes('live'),
