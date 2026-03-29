@@ -958,15 +958,20 @@ def get_league_games(league_id: int):
         team_rows = hb.execute(text(f"SELECT id, name FROM teams WHERE id IN ({ids_sql})")).fetchall()
         team_names = {r.id: r.name for r in team_rows}
 
-    # My rostered players (if authenticated)
+    # Rostered players — optionally view another manager's roster via ?user_id=X
+    # Authenticated users can always view any manager's roster in the same league
+    view_user_id = request.args.get("user_id", None, type=int)
+    if not view_user_id and g.pred_user:
+        view_user_id = g.pred_user.id
+
     my_roster = {}  # hb_human_id -> FantasyRoster
     human_names = {}  # hb_human_id -> display_name
-    if g.pred_user:
+    if view_user_id:
         from app.models.fantasy_roster import FantasyRoster
         roster_rows = pred.execute(
             select(FantasyRoster).where(
                 FantasyRoster.league_id == league_id,
-                FantasyRoster.user_id == g.pred_user.id,
+                FantasyRoster.user_id == view_user_id,
             )
         ).scalars().all()
         my_roster = {r.hb_human_id: r for r in roster_rows}
@@ -977,7 +982,7 @@ def get_league_games(league_id: int):
             ).fetchall()
             human_names = {r.id: f"{r.first_name or ''} {r.last_name or ''}".strip() for r in human_rows}
 
-    # Batch-load my scores for completed games
+    # Batch-load scores for completed games
     scored_games = {r.id for r in game_rows if r.status in FINAL}
     my_scores = {}  # game_id -> {hb_human_id -> row}
     if my_roster and scored_games:
@@ -985,7 +990,7 @@ def get_league_games(league_id: int):
         score_rows = pred.execute(
             select(FantasyGameScores).where(
                 FantasyGameScores.league_id == league_id,
-                FantasyGameScores.user_id == g.pred_user.id,
+                FantasyGameScores.user_id == view_user_id,
                 FantasyGameScores.game_id.in_(scored_games),
             )
         ).scalars().all()

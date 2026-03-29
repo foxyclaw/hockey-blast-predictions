@@ -366,10 +366,17 @@
               <tr
                 v-for="row in standings"
                 :key="row.user_id"
-                :class="{ 'bg-primary/10 font-semibold': row.user_id === myUserId }"
+                :class="[
+                  { 'bg-primary/10 font-semibold': row.user_id === myUserId },
+                  league.hb_division_id ? 'cursor-pointer hover:bg-base-300' : ''
+                ]"
+                @click="league.hb_division_id ? (activeTab = 'games', loadGames(row.user_id)) : null"
+                :title="league.hb_division_id ? `View ${row.team_name}'s games` : ''"
               >
                 <td>{{ row.rank || '—' }}</td>
-                <td>{{ row.team_name }}</td>
+                <td>{{ row.team_name }}
+                  <span v-if="league.hb_division_id" class="text-xs opacity-40 ml-1">🏒</span>
+                </td>
                 <td class="text-base-content/60 text-sm">{{ row.display_name }}</td>
                 <td class="text-right">{{ row.week_points != null ? Number(row.week_points).toFixed(1) : '—' }}</td>
                 <td class="text-right font-bold">{{ row.total_points != null ? Number(row.total_points).toFixed(1) : '—' }}</td>
@@ -382,6 +389,16 @@
 
       <!-- ── Games Tab ── -->
       <div v-if="activeTab === 'games'">
+        <!-- Whose roster are we viewing? -->
+        <div v-if="viewUserId" class="flex items-center justify-between mb-3">
+          <div class="text-sm font-medium">
+            {{ standings.find(r => r.user_id === viewUserId)?.team_name || 'Unknown' }}
+            <span class="opacity-50 text-xs font-normal ml-1">
+              ({{ standings.find(r => r.user_id === viewUserId)?.display_name }})
+            </span>
+          </div>
+          <button class="btn btn-xs btn-ghost" @click="loadGames(null)">← My roster</button>
+        </div>
         <div v-if="gamesLoading" class="flex justify-center py-10">
           <span class="loading loading-spinner loading-md"></span>
         </div>
@@ -619,6 +636,7 @@ const standings = ref([])
 const standingsLoading = ref(false)
 const games = ref([])
 const gamesLoading = ref(false)
+const viewUserId = ref(null)  // whose roster to show in games tab (null = own)
 
 const allTabs = [
   { id: 'standings', label: '🏆 Standings' },
@@ -852,10 +870,12 @@ async function loadPool() {
   }
 }
 
-async function loadGames() {
+async function loadGames(userId = null) {
   gamesLoading.value = true
+  viewUserId.value = userId
   try {
-    const { data } = await api.get(`/api/fantasy/leagues/${route.params.id}/games`)
+    const params = userId ? `?user_id=${userId}` : ''
+    const { data } = await api.get(`/api/fantasy/leagues/${route.params.id}/games${params}`)
     games.value = data.games || []
   } catch {
     games.value = []
