@@ -32,7 +32,7 @@ def get_or_create_pred_user(token_payload: dict[str, Any], session: Session) -> 
 
     if user is None:
         # Check if same email exists from a different auth provider — link accounts
-        email = token_payload.get(email)
+        email = token_payload.get("email")
         if email:
             existing = session.execute(
                 select(PredUser).where(PredUser.email == email)
