@@ -68,7 +68,7 @@
           <span>👥 {{ league.manager_count }} / {{ league.max_managers }} managers</span>
           <span>📋 {{ league.roster_skaters }} skaters + {{ league.roster_goalies }} goalie(s){{ league.roster_refs ? ' + ' + league.roster_refs + ' ref(s)' : '' }} per team</span>
           <template v-if="['active','completed'].includes(league.status)">
-            <span v-if="league.season_starts_at">📅 Season started: {{ formatDeadline(league.season_starts_at) }}</span>
+            <span v-if="league.season_starts_at">📅 Season {{ new Date(league.season_starts_at) <= new Date() ? 'started' : 'starts' }}: {{ formatDeadline(league.season_starts_at) }}</span>
           </template>
           <template v-else>
             <span v-if="league.draft_closes_at && league.draft_opens_at">⏱ Draft: {{ formatDeadline(league.draft_opens_at) }} – {{ formatDeadline(league.draft_closes_at) }}</span>
