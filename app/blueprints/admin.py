@@ -802,7 +802,6 @@ def update_fantasy_league(league_id: int):
                 from app.services.fantasy_draft_service import build_draft_queue
                 build_draft_queue(league_id)
             except Exception as qe:
-                import logging
                 logging.getLogger(__name__).warning("Failed to build draft queue for league %d: %s", league_id, qe)
 
     # Detect season change (to a new value OR to null) before commit
