@@ -184,8 +184,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useApiClient } from '@/api/client'
+import { useAuth0 } from '@auth0/auth0-vue'
 
 const api = useApiClient()
+
+const { isAuthenticated, loginWithRedirect } = useAuth0()
 
 const leagues = ref([])
 const loading = ref(false)
@@ -236,6 +239,10 @@ async function createLeague() {
 }
 
 async function joinLeague() {
+  if (!isAuthenticated.value) {
+    await loginWithRedirect({ appState: { returnTo: window.location.pathname + window.location.search } })
+    return
+  }
   joining.value = true
   joinError.value = null
   try {
@@ -248,6 +255,10 @@ async function joinLeague() {
     }
     joinForm.value = { join_code: '' }
   } catch (e) {
+    if (e.response?.status === 401) {
+      await loginWithRedirect({ appState: { returnTo: window.location.pathname + window.location.search } })
+      return
+    }
     joinError.value = e.response?.data?.message ?? e.message
   } finally {
     joining.value = false
