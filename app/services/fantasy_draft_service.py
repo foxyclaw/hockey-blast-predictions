@@ -178,19 +178,32 @@ def _set_next_deadline(league_id: int, pred, pick_hours: int, prev_was_auto: boo
 
     If the next manager has a non-empty priority queue with an available player,
     auto-pick immediately on their behalf instead of waiting for them.
+    Loops (not recurses) to chain auto-picks safely across many managers.
     """
-    stmt = (
-        select(FantasyDraftQueue)
-        .where(
-            FantasyDraftQueue.league_id == league_id,
-            FantasyDraftQueue.hb_human_id.is_(None),
-            FantasyDraftQueue.is_skipped == False,  # noqa: E712
+    MAX_AUTO_PICKS = 500  # hard safety cap — full draft is n_managers * total_rounds
+
+    for _ in range(MAX_AUTO_PICKS):
+        stmt = (
+            select(FantasyDraftQueue)
+            .where(
+                FantasyDraftQueue.league_id == league_id,
+                FantasyDraftQueue.hb_human_id.is_(None),
+                FantasyDraftQueue.is_skipped == False,  # noqa: E712
+            )
+            .order_by(FantasyDraftQueue.overall_pick.asc())
+            .limit(1)
         )
-        .order_by(FantasyDraftQueue.overall_pick.asc())
-        .limit(1)
-    )
-    slot = pred.execute(stmt).scalar_one_or_none()
-    if slot:
+        slot = pred.execute(stmt).scalar_one_or_none()
+        if not slot:
+            # No more unpicked slots — draft is complete, mark league active
+            league = pred.get(FantasyLeague, league_id)
+            if league and league.status == "drafting":
+                league.status = "active"
+                if not league.draft_season_id:
+                    league.draft_season_id = league.hb_season_id
+                pred.commit()
+            return
+
         league = pred.get(FantasyLeague, league_id)
 
         # Check if this manager has a queued player ready — if so, auto-pick immediately
@@ -201,35 +214,25 @@ def _set_next_deadline(league_id: int, pred, pick_hours: int, prev_was_auto: boo
                 league_id, slot.overall_pick, slot.user_id, best["hb_human_id"],
             )
             now = datetime.now(timezone.utc)
-            slot.deadline = now  # set deadline to now before picking
+            slot.deadline = now
             pred.commit()
             _record_pick(league_id, slot, best["hb_human_id"],
                 is_goalie=slot.is_goalie_pick and best.get("is_goalie", False),
                 pred=pred, now=now,
                 is_ref=slot.is_ref_pick and best.get("is_ref", False))
-            # Notify them that we auto-picked from their queue
             _notify_manager(slot.user_id, league_id, slot.overall_pick, now, pred, auto_picked_from_queue=True)
-            # Transition league to drafting if needed
             if league and league.status == "draft_open":
                 league.status = "drafting"
                 league.draft_started_at = now
                 pred.commit()
-            # Recurse to set deadline on the NEXT pick (may also auto-pick)
-            _set_next_deadline(league_id, pred, pick_hours, prev_was_auto=prev_was_auto)
-            return
+            # Loop to check the next pick
+            continue
 
+        # No queue hit — set deadline and wait for manual pick
         slot.deadline = _deadline_respecting_quiet_hours(pick_hours)
         pred.commit()
-        # Notify the manager it's their turn
         _notify_manager(slot.user_id, slot.league_id, slot.overall_pick, slot.deadline, pred)
-    else:
-        # No more unpicked slots — draft is complete, mark league active
-        league = pred.get(FantasyLeague, league_id)
-        if league and league.status == "drafting":
-            league.status = "active"
-            if not league.draft_season_id:
-                league.draft_season_id = league.hb_season_id
-            pred.commit()
+        return
 
 
 def advance_draft(league_id: int) -> None:

@@ -143,7 +143,7 @@
                   <div class="flex flex-wrap gap-1">
                     <template v-for="(hid, idx) in myPriorityQueue" :key="hid">
                       <span class="badge badge-sm gap-1"
-                        :class="idx === 0 ? 'badge-warning' : 'badge-ghost'"
+                        :class="draftQueue.find(p => p.hb_human_id === hid && p.picked_at) ? 'badge-ghost opacity-40 line-through' : idx === 0 ? 'badge-warning' : 'badge-ghost'"
                       >
                         <span class="font-bold">{{ idx + 1 }}.</span>
                         {{ [...pool.skaters, ...pool.goalies, ...(pool.refs||[])].find(p => p.hb_human_id === hid)?.first_name }}
@@ -1101,9 +1101,7 @@ async function pickPlayer(player) {
   picking.value = true
   try {
     await api.post(`/api/fantasy/leagues/${route.params.id}/draft`, { hb_human_id: player.hb_human_id })
-    await loadDraftQueue()
-    await loadPool()
-    await loadLeague()
+    await Promise.all([loadDraftQueue(), loadPool(), loadMyQueue(), loadLeague()])
   } catch (e) {
     pickError.value = e?.response?.data?.message || 'Failed to pick player'
   } finally {
@@ -1126,7 +1124,7 @@ watch(() => league.value?.status, (status) => {
   if (['draft_open', 'drafting'].includes(status)) {
     _draftPollInterval = setInterval(async () => {
       await loadLeague()
-      await Promise.all([loadDraftQueue(), loadPool()])
+      await Promise.all([loadDraftQueue(), loadPool(), loadMyQueue()])
     }, 30000)
   }
 }, { immediate: true })
