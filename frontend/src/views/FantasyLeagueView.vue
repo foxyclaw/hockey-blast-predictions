@@ -1140,11 +1140,22 @@ watch(activeTab, (tab) => {
 })
 
 // Auto-switch pool tab based on pick type
-watch(currentPick, (pick) => {
+// Also trigger queue auto-pick if it's our turn and we have a queue
+watch(currentPick, async (pick) => {
   if (!pick || pick.user_id !== myUserId.value) return
   if (pick.is_goalie_pick) poolTab.value = 'goalies'
   else if (pick.is_ref_pick) poolTab.value = 'refs'
   else poolTab.value = 'skaters'
+
+  // If we have a queue, ask the backend to auto-pick from it immediately
+  if (myPriorityQueue.value.length > 0) {
+    try {
+      const { data } = await api.post(`/api/fantasy/leagues/${route.params.id}/draft/process-queue`)
+      if (data.picked) {
+        await Promise.all([loadDraftQueue(), loadPool(), loadMyQueue(), loadLeague()])
+      }
+    } catch { /* ignore — manual pick still works */ }
+  }
 }, { immediate: true })
 
 onMounted(async () => {
@@ -1168,8 +1179,9 @@ onMounted(async () => {
     joinForm.value.join_code = String(urlCode).toUpperCase()
     showJoinModal.value = true
   }
+  loadMyQueue()  // always load queue — independent of league status / auth timing
   if (league.value && !['forming'].includes(league.value.status)) {
-    await Promise.all([loadDraftQueue(), loadPool(), loadMyQueue()])
+    await Promise.all([loadDraftQueue(), loadPool()])
   }
 })
 </script>

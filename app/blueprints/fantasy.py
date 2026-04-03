@@ -831,6 +831,65 @@ def save_my_draft_queue(league_id: int):
     return jsonify({"ok": True, "count": len(deduped)})
 
 
+@fantasy_bp.route("/leagues/<int:league_id>/draft/process-queue", methods=["POST"])
+@require_auth
+def process_draft_queue(league_id: int):
+    """POST /api/fantasy/leagues/<id>/draft/process-queue
+    Called by the frontend when it's the user's turn and they have a queue.
+    Triggers auto-pick from queue immediately if conditions are met.
+    Returns {"picked": true/false, "player": {...}} so the frontend can refresh.
+    """
+    from app.models.fantasy_draft_queue import FantasyDraftQueue
+    from app.services.fantasy_draft_service import _best_available_from_queue_only, _record_pick, _set_next_deadline, _compute_pick_hours
+    from sqlalchemy import select
+    from datetime import datetime, timezone
+
+    user_id = g.pred_user.id
+    pred = PredSession()
+    league = pred.get(FantasyLeague, league_id)
+
+    if league is None or league.status not in ("draft_open", "drafting"):
+        return jsonify({"picked": False, "reason": "draft not active"})
+
+    # Get current pick
+    stmt = (
+        select(FantasyDraftQueue)
+        .where(
+            FantasyDraftQueue.league_id == league_id,
+            FantasyDraftQueue.hb_human_id.is_(None),
+            FantasyDraftQueue.is_skipped == False,  # noqa: E712
+        )
+        .order_by(FantasyDraftQueue.overall_pick.asc())
+        .limit(1)
+    )
+    current = pred.execute(stmt).scalar_one_or_none()
+
+    if current is None or current.user_id != user_id:
+        return jsonify({"picked": False, "reason": "not your turn"})
+
+    best = _best_available_from_queue_only(league_id, user_id, pred, league, current_slot=current)
+    if best is None:
+        return jsonify({"picked": False, "reason": "no queue match"})
+
+    now = datetime.now(timezone.utc)
+    current.deadline = now
+    pred.commit()
+    _record_pick(league_id, current, best["hb_human_id"],
+        is_goalie=current.is_goalie_pick and best.get("is_goalie", False),
+        pred=pred, now=now,
+        is_ref=current.is_ref_pick and best.get("is_ref", False))
+
+    if league.status == "draft_open":
+        league.status = "drafting"
+        league.draft_started_at = now
+        pred.commit()
+
+    _set_next_deadline(league_id, pred, _compute_pick_hours(league))
+
+    return jsonify({"picked": True, "player": {"hb_human_id": best["hb_human_id"],
+        "first_name": best.get("first_name"), "last_name": best.get("last_name")}})
+
+
 @fantasy_bp.route("/leagues/<int:league_id>/roster/<int:user_id>", methods=["GET"])
 @optional_auth
 def get_roster(league_id: int, user_id: int):
