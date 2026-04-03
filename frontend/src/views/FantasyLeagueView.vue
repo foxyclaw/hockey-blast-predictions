@@ -135,7 +135,7 @@
           </div>
 
           <!-- My Priority Queue strip -->
-          <div v-if="['draft_open', 'drafting'].includes(league.status) && league.is_member && isAuthenticated && myPriorityQueue.length > 0" class="mb-4">
+          <div v-if="['forming', 'draft_open', 'drafting'].includes(league.status) && league.is_member && isAuthenticated && myPriorityQueue.length > 0" class="mb-4">
             <div class="card bg-warning/10 border border-warning/30 shadow">
               <div class="card-body p-3">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -158,13 +158,13 @@
             </div>
           </div>
 
-          <!-- Player pool panel (shown during draft, full pool with drafted indicators) -->
-          <div v-if="['draft_open', 'drafting'].includes(league.status)" class="mb-6">
+          <!-- Player pool panel (shown during forming for queue building, and during draft) -->
+          <div v-if="['forming', 'draft_open', 'drafting'].includes(league.status) && league.is_member" class="mb-6">
             <div class="card bg-base-200 shadow">
               <div class="card-body p-4">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <h3 class="font-semibold flex items-center flex-wrap gap-2">
-                    Draft Pool
+                    {{ league.status === 'forming' ? 'Build Your Queue' : 'Draft Pool' }}
                     <span v-if="currentPick && currentPick.user_id === myUserId && league.is_member" class="badge badge-success badge-sm animate-pulse">Your Pick!</span>
                     <template v-if="league.is_member">
                       <span class="text-xs font-normal text-base-content/50 flex items-center gap-1">
@@ -1190,7 +1190,7 @@ onMounted(async () => {
     showJoinModal.value = true
   }
   loadMyQueue()  // always load queue — independent of league status / auth timing
-  if (league.value && !['forming'].includes(league.value.status)) {
+  if (league.value && ['forming', 'draft_open', 'drafting'].includes(league.value.status)) {
     await Promise.all([loadDraftQueue(), loadPool()])
   }
 })
