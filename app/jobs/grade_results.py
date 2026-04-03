@@ -141,6 +141,67 @@ def start_scheduler(app):
         replace_existing=True,
     )
 
+    def _draft_open_job():
+        """
+        Auto-open drafts whose draft_opens_at has passed and are still forming.
+        Runs every minute.
+        """
+        with _app.app_context():
+            try:
+                import random as _random
+                from datetime import datetime, timezone as _tz
+                from sqlalchemy import select
+                from app.db import PredSession
+                from app.models.fantasy_league import FantasyLeague
+                from app.models.fantasy_manager import FantasyManager
+                from app.services.fantasy_draft_service import build_draft_queue
+
+                pred = PredSession()
+                now = datetime.now(_tz.utc)
+                ready = pred.execute(
+                    select(FantasyLeague).where(
+                        FantasyLeague.status == "forming",
+                        FantasyLeague.draft_opens_at <= now,
+                        FantasyLeague.draft_opens_at.isnot(None),
+                    )
+                ).scalars().all()
+
+                for league in ready:
+                    from sqlalchemy import func as _func
+                    mgr_count = pred.execute(
+                        select(_func.count()).select_from(FantasyManager).where(
+                            FantasyManager.league_id == league.id
+                        )
+                    ).scalar_one()
+                    if mgr_count < 2:
+                        continue  # not enough managers yet
+                    managers = pred.execute(
+                        select(FantasyManager).where(FantasyManager.league_id == league.id)
+                    ).scalars().all()
+                    # Assign positions only if not already assigned
+                    if all(m.draft_position is None for m in managers):
+                        positions = list(range(1, len(managers) + 1))
+                        _random.shuffle(positions)
+                        for m, pos in zip(managers, positions):
+                            m.draft_position = pos
+                    league.status = "draft_open"
+                    pred.commit()
+                    try:
+                        build_draft_queue(league.id)
+                        logger.info("[draft] Auto-opened league %d at scheduled time", league.id)
+                    except Exception as e:
+                        logger.warning("[draft] build_draft_queue(%d) error: %s", league.id, e)
+            except Exception as exc:
+                logger.exception("[draft] Unhandled error in draft open job: %s", exc)
+
+    _scheduler.add_job(
+        func=_draft_open_job,
+        trigger=IntervalTrigger(minutes=1),
+        id="open_drafts",
+        name="Auto-open forming drafts at scheduled time",
+        replace_existing=True,
+    )
+
     def _draft_advance_job():
         """
         Check all active drafts for expired pick deadlines.

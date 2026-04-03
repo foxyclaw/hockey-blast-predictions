@@ -820,10 +820,20 @@ const queuePositionOf = (hb_human_id) => {
   return idx === -1 ? null : idx + 1
 }
 
-function toggleQueuePlayer(hb_human_id) {
+async function toggleQueuePlayer(hb_human_id) {
+  // If it's our turn, ☆ = instant draft (Option A)
+  if (currentPick.value && currentPick.value.user_id === myUserId.value && league.value?.is_member) {
+    const player = [...(pool.value.skaters || []), ...(pool.value.goalies || []), ...(pool.value.refs || [])]
+      .find(p => p.hb_human_id === hb_human_id)
+    if (player) {
+      await pickPlayer(player)
+      return
+    }
+  }
+  // Otherwise manage queue as normal
   const idx = myPriorityQueue.value.indexOf(hb_human_id)
   if (idx === -1) {
-    // Not in queue → add to end (lowest priority)
+    // Not in queue → add to end
     myPriorityQueue.value = [...myPriorityQueue.value, hb_human_id]
   } else if (idx === 0) {
     // Already at top → remove

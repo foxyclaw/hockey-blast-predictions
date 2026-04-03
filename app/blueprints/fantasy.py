@@ -607,10 +607,13 @@ def join_league(league_id: int):
         pred.add(mgr)
         pred.commit()
 
-        # Auto-open draft when league hits max_managers
+        # When league hits max_managers, assign draft positions.
+        # Only auto-open immediately if draft_opens_at is already past (or not set).
+        # Otherwise stay in "forming" so managers can build their queues until scheduled time.
         new_count = mgr_count + 1
         if new_count >= league.max_managers and league.status == "forming":
             import random as _random
+            from datetime import datetime, timezone as _tz
             managers = pred.execute(
                 select(FantasyManager).where(FantasyManager.league_id == league_id)
             ).scalars().all()
@@ -618,14 +621,21 @@ def join_league(league_id: int):
             _random.shuffle(positions)
             for m, pos in zip(managers, positions):
                 m.draft_position = pos
-            league.status = "draft_open"
-            pred.commit()
 
-            from app.services.fantasy_draft_service import build_draft_queue
-            try:
-                build_draft_queue(league_id)
-            except Exception as e:
-                pass  # draft queue build failure shouldn't block the join response
+            now_utc = datetime.now(_tz.utc)
+            opens_at = league.draft_opens_at
+            if opens_at is None or opens_at <= now_utc:
+                # No scheduled time or already past — open immediately
+                league.status = "draft_open"
+                pred.commit()
+                from app.services.fantasy_draft_service import build_draft_queue
+                try:
+                    build_draft_queue(league_id)
+                except Exception:
+                    pass
+            else:
+                # Scheduled time in the future — stay forming, managers can build queues
+                pred.commit()
 
     except Exception as e:
         pred.rollback()
