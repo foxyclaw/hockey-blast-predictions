@@ -1128,11 +1128,11 @@ onUnmounted(() => { if (_draftPollInterval) clearInterval(_draftPollInterval) })
 
 watch(() => league.value?.status, (status) => {
   if (_draftPollInterval) { clearInterval(_draftPollInterval); _draftPollInterval = null }
-  if (['draft_open', 'drafting'].includes(status)) {
+  if (['forming', 'draft_open', 'drafting'].includes(status)) {
     _draftPollInterval = setInterval(async () => {
       await loadLeague()
       await Promise.all([loadDraftQueue(), loadPool(), loadMyQueue()])
-    }, 30000)
+    }, 10000)  // 10s — fast enough to catch auto-picks cascading
   }
 }, { immediate: true })
 
