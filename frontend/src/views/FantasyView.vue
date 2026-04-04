@@ -256,7 +256,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useApiClient } from '@/api/client'
 import { useAuth0 } from '@auth0/auth0-vue'
@@ -292,6 +292,22 @@ const createdJoinCode = ref('')
 const showJoinCodeModal = ref(false)
 const showJoinCodeEntry = ref(false)
 const joinCodeEntry = ref('')
+
+function addMins(dtStr, mins) {
+  if (!dtStr) return ''
+  const d = new Date(dtStr)
+  d.setMinutes(d.getMinutes() + mins)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// Auto-cascade: draft opens → closes +30min → season start +30min
+watch(() => createForm.value.draft_opens_at, (val) => {
+  if (val) createForm.value.draft_closes_at = addMins(val, 30)
+})
+watch(() => createForm.value.draft_closes_at, (val) => {
+  if (val) createForm.value.season_starts_at = addMins(val, 30)
+})
 const joinCodeError = ref('')
 
 // League + level selectors
