@@ -294,8 +294,10 @@ def create_league():
     except Exception as e:
         return error_response("INTERNAL_ERROR", f"Could not load player pool: {e}", 500)
 
-    # Capture the resolved season_id so scoring works correctly
-    hb_season_id = pool_info.get("resolved_season_id")
+    # draft_season_id = season used to build the player pool (past season, rich stats)
+    # hb_season_id = season used for live scoring (starts NULL, auto-assigned when play season starts)
+    draft_season_id = pool_info.get("resolved_season_id")
+    hb_season_id = None  # will be auto-assigned by scoring service when play season begins
 
     roster_skaters = pool_info["roster_skaters"]
     max_managers = pool_info["max_managers"]
@@ -349,7 +351,8 @@ def create_league():
             level_id=level_id,
             level_name=level_name,
             hb_league_id=hb_league_id,
-            hb_season_id=hb_season_id,
+            hb_season_id=hb_season_id,  # NULL — auto-assigned when play season starts
+            draft_season_id=draft_season_id,  # locked to draft pool season
             org_id=level.org_id,
             season_label=data.get("season_label"),
             status="forming",
@@ -657,7 +660,7 @@ def get_pool(league_id: int):
 
     from app.services.fantasy_pool_service import get_player_pool
     try:
-        pool = get_player_pool(league.level_id, org_id=league.org_id, league_id=league.hb_league_id, season_id=league.hb_season_id)
+        pool = get_player_pool(league.level_id, org_id=league.org_id, league_id=league.hb_league_id, season_id=league.draft_season_id or league.hb_season_id)
     except Exception as e:
         return error_response("INTERNAL_ERROR", str(e), 500)
 

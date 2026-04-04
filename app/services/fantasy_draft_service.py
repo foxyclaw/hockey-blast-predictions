@@ -538,11 +538,11 @@ def _picks_remaining_for_manager(league_id: int, user_id: int, pred) -> int:
 
 
 def _get_pool(league_id: int) -> dict:
-    """Get the level pool for this league."""
+    """Get the level pool for this league (always uses draft_season_id, not play season)."""
     from app.services.fantasy_pool_service import get_player_pool
     pred = PredSession()
     league = pred.get(FantasyLeague, league_id)
-    return get_player_pool(league.level_id, org_id=league.org_id, league_id=league.hb_league_id, season_id=league.hb_season_id)
+    return get_player_pool(league.level_id, org_id=league.org_id, league_id=league.hb_league_id, season_id=league.draft_season_id or league.hb_season_id)
 
 
 def _clear_stale_draft_notifications(user_id: int, league_id: int, pred) -> None:
