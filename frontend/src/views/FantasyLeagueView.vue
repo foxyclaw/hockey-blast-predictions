@@ -58,16 +58,7 @@
             >
               Join League
             </button>
-            <!-- Open draft -->
-            <button
-              v-if="league.is_creator && league.status === 'forming' && (league.manager_count || 0) >= 2"
-              class="btn btn-warning btn-sm"
-              :disabled="openingDraft"
-              @click="openDraft"
-            >
-              <span v-if="openingDraft" class="loading loading-spinner loading-xs"></span>
-              Open Draft
-            </button>
+            <!-- Open draft button removed: draft opens automatically at scheduled time -->
             
           </div>
         </div>
@@ -101,19 +92,19 @@
 
       <!-- ── Draft Tab ── -->
       <div v-if="activeTab === 'draft'">
-        <div v-if="league.status === 'forming'" class="text-center py-10 text-base-content/40">
+        <!-- Forming status banner -->
+        <div v-if="league.status === 'forming'" class="text-center py-6 text-base-content/40 mb-4">
           <div class="text-4xl mb-2">⏳</div>
           <p class="font-medium">Draft opens {{ formatDeadline(league.draft_opens_at) }}</p>
           <p class="text-sm mt-1 max-w-xs mx-auto">
-            The draft will start automatically once the league fills up, or at the scheduled time — whichever comes first.
+            {{ league.is_member ? 'Use this time to star players and build your queue below!' : 'The draft starts at the scheduled time once enough managers join.' }}
           </p>
-          <p v-if="league.is_member" class="mt-3 text-success text-sm">✅ You're in! You'll be notified when it's your turn to pick.</p>
-          <p v-else class="mt-3">
+          <p v-if="!league.is_member" class="mt-3">
             <button class="btn btn-primary btn-sm" @click="isAuthenticated ? showJoinModal = true : requireLogin()">Join League</button>
           </p>
         </div>
 
-        <div v-else>
+        <div>
           <!-- Current pick info -->
           <div v-if="currentPick" class="alert mb-4" :class="currentPick.user_id === myUserId ? 'alert-success' : 'alert-info'">
             <div>
@@ -135,7 +126,7 @@
           </div>
 
           <!-- My Priority Queue strip -->
-          <div v-if="['draft_open', 'drafting'].includes(league.status) && league.is_member && isAuthenticated && myPriorityQueue.length > 0" class="mb-4">
+          <div v-if="['forming', 'draft_open', 'drafting'].includes(league.status) && league.is_member && isAuthenticated && myPriorityQueue.length > 0" class="mb-4">
             <div class="card bg-warning/10 border border-warning/30 shadow">
               <div class="card-body p-3">
                 <div class="flex items-center gap-2 flex-wrap">
@@ -143,7 +134,7 @@
                   <div class="flex flex-wrap gap-1">
                     <template v-for="(hid, idx) in myPriorityQueue" :key="hid">
                       <span class="badge badge-sm gap-1"
-                        :class="idx === 0 ? 'badge-warning' : 'badge-ghost'"
+                        :class="draftQueue.find(p => p.hb_human_id === hid && p.picked_at) ? 'badge-ghost opacity-40 line-through' : idx === 0 ? 'badge-warning' : 'badge-ghost'"
                       >
                         <span class="font-bold">{{ idx + 1 }}.</span>
                         {{ [...pool.skaters, ...pool.goalies, ...(pool.refs||[])].find(p => p.hb_human_id === hid)?.first_name }}
@@ -158,14 +149,24 @@
             </div>
           </div>
 
-          <!-- Player pool panel (shown during draft, full pool with drafted indicators) -->
-          <div v-if="['draft_open', 'drafting'].includes(league.status)" class="mb-6">
+          <!-- Player pool panel (shown during forming for queue building, and during draft) -->
+          <div v-if="['forming', 'draft_open', 'drafting'].includes(league.status) && league.is_member" class="mb-6">
             <div class="card bg-base-200 shadow">
               <div class="card-body p-4">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                  <h3 class="font-semibold">
-                    Draft Pool
-                    <span v-if="currentPick && currentPick.user_id === myUserId && league.is_member" class="badge badge-success badge-sm ml-2 animate-pulse">Your Pick!</span>
+                  <h3 class="font-semibold flex items-center flex-wrap gap-2">
+                    <span v-if="league.status === 'forming'">Queue up now — skip the live draft</span>
+                    <span v-else>Draft Pool</span>
+                    <span v-if="currentPick && currentPick.user_id === myUserId && league.is_member" class="badge badge-success badge-sm animate-pulse">Your Pick!</span>
+                    <template v-if="league.is_member">
+                      <span class="flex items-center gap-2 text-sm font-bold">
+                        <span class="text-base-content/40 font-normal text-xs">Roster:</span>
+                        <span title="Skaters" class="flex items-center gap-0.5">🏒 <span class="text-base text-primary">{{ Math.max(0, league.roster_skaters - myDraftedSkaters) }}</span></span>
+                        <span title="Goalies" class="flex items-center gap-0.5">🥅 <span class="text-base text-primary">{{ Math.max(0, league.roster_goalies - myDraftedGoalies) }}</span></span>
+                        <span v-if="league.roster_refs > 0" title="Refs" class="flex items-center gap-0.5">🎮 <span class="text-base text-primary">{{ Math.max(0, league.roster_refs - myDraftedRefs) }}</span></span>
+                        <span class="text-base-content/40 font-normal text-xs">needed</span>
+                      </span>
+                    </template>
                   </h3>
                   <input
                     v-model="playerFilter"
@@ -192,7 +193,7 @@
                 </div>
 
                 <!-- Skaters table -->
-                <div v-if="poolTab === 'skaters'" class="overflow-x-auto max-h-80 overflow-y-auto">
+                <div v-if="poolTab === 'skaters'" class="overflow-x-auto max-h-80 overflow-y-auto pool-scroll-container">
                   <table class="table table-xs w-full">
                     <thead class="sticky top-0 bg-base-200 z-10">
                       <tr>
@@ -255,7 +256,7 @@
                 </div>
 
                 <!-- Goalies table -->
-                <div v-if="poolTab === 'goalies'" class="overflow-x-auto max-h-80 overflow-y-auto">
+                <div v-if="poolTab === 'goalies'" class="overflow-x-auto max-h-80 overflow-y-auto pool-scroll-container">
                   <table class="table table-xs w-full">
                     <thead class="sticky top-0 bg-base-200 z-10">
                       <tr>
@@ -314,7 +315,7 @@
                 </div>
 
                 <!-- Refs table -->
-                <div v-if="poolTab === 'refs'" class="overflow-x-auto max-h-80 overflow-y-auto">
+                <div v-if="poolTab === 'refs'" class="overflow-x-auto max-h-80 overflow-y-auto pool-scroll-container">
                   <table class="table table-xs w-full">
                     <thead class="sticky top-0 bg-base-200 z-10">
                       <tr>
@@ -610,7 +611,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, h, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth0 } from '@auth0/auth0-vue'
 import { useUserStore } from '@/stores/user'
@@ -652,12 +653,12 @@ const RosterList = {
       // Table header
       const thead = h('thead', [
         h('tr', [
-          h('th', { class: 'text-left text-xs font-medium opacity-60 pb-1 pr-4' }, 'Player'),
-          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-2' }, 'GP'),
-          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-2' }, 'G'),
-          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-2' }, 'A'),
-          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-2 text-error' }, 'PIM'),
-          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 pl-2' }, 'FP'),
+          h('th', { class: 'text-left text-xs font-medium opacity-60 pb-1 w-full' }, 'Player'),
+          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-3 whitespace-nowrap' }, 'GP'),
+          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-3 whitespace-nowrap' }, 'G'),
+          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-3 whitespace-nowrap' }, 'A'),
+          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 px-3 whitespace-nowrap text-error' }, 'PIM'),
+          h('th', { class: 'text-right text-xs font-medium opacity-60 pb-1 pl-3 whitespace-nowrap' }, 'FP'),
         ])
       ])
 
@@ -681,11 +682,11 @@ const RosterList = {
         ])
         return h('tr', { key: p.hb_human_id, class: 'border-t border-base-300/30' }, [
           nameCell,
-          h('td', { class: 'text-right text-xs px-2 py-1 opacity-70' }, p.gp ?? 0),
-          h('td', { class: 'text-right text-xs px-2 py-1 opacity-70' }, p.goals ?? 0),
-          h('td', { class: 'text-right text-xs px-2 py-1 opacity-70' }, p.assists ?? 0),
-          h('td', { class: 'text-right text-xs px-2 py-1 ' + (p.penalties ? 'text-error' : 'opacity-70') }, p.penalties ?? 0),
-          h('td', { class: 'text-right text-xs pl-2 py-1 font-semibold text-primary' },
+          h('td', { class: 'text-right text-xs px-3 py-1 opacity-70 whitespace-nowrap' }, p.gp ?? 0),
+          h('td', { class: 'text-right text-xs px-3 py-1 opacity-70 whitespace-nowrap' }, p.goals ?? 0),
+          h('td', { class: 'text-right text-xs px-3 py-1 opacity-70 whitespace-nowrap' }, p.assists ?? 0),
+          h('td', { class: 'text-right text-xs px-3 py-1 whitespace-nowrap ' + (p.penalties ? 'text-error' : 'opacity-70') }, p.penalties ?? 0),
+          h('td', { class: 'text-right text-xs pl-3 py-1 font-semibold text-primary whitespace-nowrap' },
             p.fantasy_points != null ? p.fantasy_points.toFixed(1) : '—'),
         ])
       })
@@ -812,10 +813,20 @@ const queuePositionOf = (hb_human_id) => {
   return idx === -1 ? null : idx + 1
 }
 
-function toggleQueuePlayer(hb_human_id) {
+async function toggleQueuePlayer(hb_human_id) {
+  // If it's our turn, ☆ = instant draft (Option A)
+  if (currentPick.value && currentPick.value.user_id === myUserId.value && league.value?.is_member) {
+    const player = [...(pool.value.skaters || []), ...(pool.value.goalies || []), ...(pool.value.refs || [])]
+      .find(p => p.hb_human_id === hb_human_id)
+    if (player) {
+      await pickPlayer(player)
+      return
+    }
+  }
+  // Otherwise manage queue as normal
   const idx = myPriorityQueue.value.indexOf(hb_human_id)
   if (idx === -1) {
-    // Not in queue → add to end (lowest priority)
+    // Not in queue → add to end
     myPriorityQueue.value = [...myPriorityQueue.value, hb_human_id]
   } else if (idx === 0) {
     // Already at top → remove
@@ -836,11 +847,11 @@ function scheduleSaveQueue() {
 }
 
 async function loadMyQueue() {
-  if (!isAuthenticated.value) return
   try {
     const { data } = await api.get(`/api/fantasy/leagues/${route.params.id}/draft/my-queue`)
     myPriorityQueue.value = (data.queue || []).map(i => i.hb_human_id)
   } catch {
+    // 401 if not authenticated — silently leave queue empty
     myPriorityQueue.value = []
   }
 }
@@ -987,15 +998,15 @@ function requireLogin() {
   loginWithRedirect()
 }
 
-async function loadLeague() {
-  loading.value = true
+async function loadLeague({ silent = false } = {}) {
+  if (!silent) loading.value = true
   try {
     const { data } = await api.get(`/api/fantasy/leagues/${route.params.id}`)
     league.value = data
   } catch {
-    league.value = null
+    if (!silent) league.value = null
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
@@ -1014,6 +1025,20 @@ async function loadPool() {
     pool.value = data
   } catch {
     pool.value = { skaters: [], goalies: [] }
+  }
+}
+
+async function loadPoolSilent() {
+  // Reload pool without disrupting scroll position
+  try {
+    const el = document.querySelector('.pool-scroll-container')
+    const scrollTop = el ? el.scrollTop : 0
+    const { data } = await api.get(`/api/fantasy/leagues/${route.params.id}/pool`)
+    pool.value = data
+    await nextTick()
+    if (el) el.scrollTop = scrollTop
+  } catch {
+    // silently ignore on background poll
   }
 }
 
@@ -1093,9 +1118,7 @@ async function pickPlayer(player) {
   picking.value = true
   try {
     await api.post(`/api/fantasy/leagues/${route.params.id}/draft`, { hb_human_id: player.hb_human_id })
-    await loadDraftQueue()
-    await loadPool()
-    await loadLeague()
+    await Promise.all([loadDraftQueue(), loadPool(), loadMyQueue(), loadLeague()])
   } catch (e) {
     pickError.value = e?.response?.data?.message || 'Failed to pick player'
   } finally {
@@ -1109,17 +1132,22 @@ watch(authLoading, (loading) => {
   if (!loading) loadLeague()
 })
 
+watch(isAuthenticated, (authed) => {
+  if (authed) loadMyQueue()
+}, { immediate: true })
+
 // Auto-refresh draft state every 30s when draft is active
 let _draftPollInterval = null
 onUnmounted(() => { if (_draftPollInterval) clearInterval(_draftPollInterval) })
 
 watch(() => league.value?.status, (status) => {
   if (_draftPollInterval) { clearInterval(_draftPollInterval); _draftPollInterval = null }
-  if (['draft_open', 'drafting'].includes(status)) {
+  if (['forming', 'draft_open', 'drafting'].includes(status)) {
     _draftPollInterval = setInterval(async () => {
-      await loadLeague()
-      await Promise.all([loadDraftQueue(), loadPool()])
-    }, 30000)
+      // Poll silently — don't show spinner or reset scroll position
+      await loadLeague({ silent: true })
+      await Promise.all([loadDraftQueue(), loadPoolSilent(), loadMyQueue()])
+    }, 30000)  // 30s — background silent poll, no spinner/scroll jump
   }
 }, { immediate: true })
 
@@ -1130,11 +1158,22 @@ watch(activeTab, (tab) => {
 })
 
 // Auto-switch pool tab based on pick type
-watch(currentPick, (pick) => {
+// Also trigger queue auto-pick if it's our turn and we have a queue
+watch(currentPick, async (pick) => {
   if (!pick || pick.user_id !== myUserId.value) return
   if (pick.is_goalie_pick) poolTab.value = 'goalies'
   else if (pick.is_ref_pick) poolTab.value = 'refs'
   else poolTab.value = 'skaters'
+
+  // If we have a queue, ask the backend to auto-pick from it immediately
+  if (myPriorityQueue.value.length > 0) {
+    try {
+      const { data } = await api.post(`/api/fantasy/leagues/${route.params.id}/draft/process-queue`)
+      if (data.picked) {
+        await Promise.all([loadDraftQueue(), loadPool(), loadMyQueue(), loadLeague()])
+      }
+    } catch { /* ignore — manual pick still works */ }
+  }
 }, { immediate: true })
 
 onMounted(async () => {
@@ -1158,7 +1197,8 @@ onMounted(async () => {
     joinForm.value.join_code = String(urlCode).toUpperCase()
     showJoinModal.value = true
   }
-  if (league.value && !['forming'].includes(league.value.status)) {
+  loadMyQueue()  // always load queue — independent of league status / auth timing
+  if (league.value && ['forming', 'draft_open', 'drafting'].includes(league.value.status)) {
     await Promise.all([loadDraftQueue(), loadPool()])
   }
 })

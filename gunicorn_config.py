@@ -7,3 +7,6 @@ timeout = 120
 accesslog = "-"
 errorlog = "-"
 loglevel = "info"
+# Scheduler runs in each worker independently (simpler than preload_app + post_fork).
+# APScheduler with IntervalTrigger is idempotent — multiple workers checking is fine.
+workers = 1  # single worker to avoid duplicate scheduler jobs

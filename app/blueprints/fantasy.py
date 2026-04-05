@@ -232,6 +232,8 @@ def get_level_pool():
         return jsonify({
             "max_managers": pool["max_managers"],
             "roster_skaters": pool["roster_skaters"],
+            "resolved_season_id": pool.get("resolved_season_id"),
+            "resolved_season_name": pool.get("resolved_season_name"),
         })
     except Exception as e:
         return jsonify({"max_managers": 12, "roster_skaters": 8})  # fallback
@@ -292,8 +294,10 @@ def create_league():
     except Exception as e:
         return error_response("INTERNAL_ERROR", f"Could not load player pool: {e}", 500)
 
-    # Capture the resolved season_id so scoring works correctly
-    hb_season_id = pool_info.get("resolved_season_id")
+    # draft_season_id = season used to build the player pool (past season, rich stats)
+    # hb_season_id = season used for live scoring (starts NULL, auto-assigned when play season starts)
+    draft_season_id = pool_info.get("resolved_season_id")
+    hb_season_id = None  # will be auto-assigned by scoring service when play season begins
 
     roster_skaters = pool_info["roster_skaters"]
     max_managers = pool_info["max_managers"]
@@ -347,7 +351,8 @@ def create_league():
             level_id=level_id,
             level_name=level_name,
             hb_league_id=hb_league_id,
-            hb_season_id=hb_season_id,
+            hb_season_id=hb_season_id,  # NULL — auto-assigned when play season starts
+            draft_season_id=draft_season_id,  # locked to draft pool season
             org_id=level.org_id,
             season_label=data.get("season_label"),
             status="forming",
@@ -607,10 +612,13 @@ def join_league(league_id: int):
         pred.add(mgr)
         pred.commit()
 
-        # Auto-open draft when league hits max_managers
+        # When league hits max_managers, assign draft positions.
+        # Only auto-open immediately if draft_opens_at is already past (or not set).
+        # Otherwise stay in "forming" so managers can build their queues until scheduled time.
         new_count = mgr_count + 1
         if new_count >= league.max_managers and league.status == "forming":
             import random as _random
+            from datetime import datetime, timezone as _tz
             managers = pred.execute(
                 select(FantasyManager).where(FantasyManager.league_id == league_id)
             ).scalars().all()
@@ -618,14 +626,21 @@ def join_league(league_id: int):
             _random.shuffle(positions)
             for m, pos in zip(managers, positions):
                 m.draft_position = pos
-            league.status = "draft_open"
-            pred.commit()
 
-            from app.services.fantasy_draft_service import build_draft_queue
-            try:
-                build_draft_queue(league_id)
-            except Exception as e:
-                pass  # draft queue build failure shouldn't block the join response
+            now_utc = datetime.now(_tz.utc)
+            opens_at = league.draft_opens_at
+            if opens_at is None or opens_at <= now_utc:
+                # No scheduled time or already past — open immediately
+                league.status = "draft_open"
+                pred.commit()
+                from app.services.fantasy_draft_service import build_draft_queue
+                try:
+                    build_draft_queue(league_id)
+                except Exception:
+                    pass
+            else:
+                # Scheduled time in the future — stay forming, managers can build queues
+                pred.commit()
 
     except Exception as e:
         pred.rollback()
@@ -645,7 +660,7 @@ def get_pool(league_id: int):
 
     from app.services.fantasy_pool_service import get_player_pool
     try:
-        pool = get_player_pool(league.level_id, org_id=league.org_id, league_id=league.hb_league_id, season_id=league.hb_season_id)
+        pool = get_player_pool(league.level_id, org_id=league.org_id, league_id=league.hb_league_id, season_id=league.draft_season_id or league.hb_season_id)
     except Exception as e:
         return error_response("INTERNAL_ERROR", str(e), 500)
 
@@ -829,6 +844,65 @@ def save_my_draft_queue(league_id: int):
 
     pred.commit()
     return jsonify({"ok": True, "count": len(deduped)})
+
+
+@fantasy_bp.route("/leagues/<int:league_id>/draft/process-queue", methods=["POST"])
+@require_auth
+def process_draft_queue(league_id: int):
+    """POST /api/fantasy/leagues/<id>/draft/process-queue
+    Called by the frontend when it's the user's turn and they have a queue.
+    Triggers auto-pick from queue immediately if conditions are met.
+    Returns {"picked": true/false, "player": {...}} so the frontend can refresh.
+    """
+    from app.models.fantasy_draft_queue import FantasyDraftQueue
+    from app.services.fantasy_draft_service import _best_available_from_queue_only, _record_pick, _set_next_deadline, _compute_pick_hours
+    from sqlalchemy import select
+    from datetime import datetime, timezone
+
+    user_id = g.pred_user.id
+    pred = PredSession()
+    league = pred.get(FantasyLeague, league_id)
+
+    if league is None or league.status not in ("draft_open", "drafting"):
+        return jsonify({"picked": False, "reason": "draft not active"})
+
+    # Get current pick
+    stmt = (
+        select(FantasyDraftQueue)
+        .where(
+            FantasyDraftQueue.league_id == league_id,
+            FantasyDraftQueue.hb_human_id.is_(None),
+            FantasyDraftQueue.is_skipped == False,  # noqa: E712
+        )
+        .order_by(FantasyDraftQueue.overall_pick.asc())
+        .limit(1)
+    )
+    current = pred.execute(stmt).scalar_one_or_none()
+
+    if current is None or current.user_id != user_id:
+        return jsonify({"picked": False, "reason": "not your turn"})
+
+    best = _best_available_from_queue_only(league_id, user_id, pred, league, current_slot=current)
+    if best is None:
+        return jsonify({"picked": False, "reason": "no queue match"})
+
+    now = datetime.now(timezone.utc)
+    current.deadline = now
+    pred.commit()
+    _record_pick(league_id, current, best["hb_human_id"],
+        is_goalie=current.is_goalie_pick and best.get("is_goalie", False),
+        pred=pred, now=now,
+        is_ref=current.is_ref_pick and best.get("is_ref", False))
+
+    if league.status == "draft_open":
+        league.status = "drafting"
+        league.draft_started_at = now
+        pred.commit()
+
+    _set_next_deadline(league_id, pred, _compute_pick_hours(league))
+
+    return jsonify({"picked": True, "player": {"hb_human_id": best["hb_human_id"],
+        "first_name": best.get("first_name"), "last_name": best.get("last_name")}})
 
 
 @fantasy_bp.route("/leagues/<int:league_id>/roster/<int:user_id>", methods=["GET"])
