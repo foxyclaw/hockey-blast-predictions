@@ -232,6 +232,9 @@ def get_level_pool():
         return jsonify({
             "max_managers": pool["max_managers"],
             "roster_skaters": pool["roster_skaters"],
+            "skater_count": len(pool.get("skaters", [])),
+            "goalie_count": len(pool.get("goalies", [])),
+            "ref_count": len(pool.get("refs", [])),
             "resolved_season_id": pool.get("resolved_season_id"),
             "resolved_season_name": pool.get("resolved_season_name"),
             "last_game_date": pool.get("last_game_date"),

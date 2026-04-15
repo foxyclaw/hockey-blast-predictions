@@ -181,6 +181,18 @@
             </div>
           </div>
 
+          <!-- Available player counts (shown after level selected) -->
+          <div v-if="createForm.level_id && !poolLoading" class="form-control">
+            <label class="label py-1">
+              <span class="label-text text-sm text-base-content/50">Available players</span>
+            </label>
+            <div class="flex flex-wrap items-center gap-3 px-1">
+              <span class="text-sm"><span class="font-semibold text-primary">{{ poolPlayerCounts.skaters }}</span> skaters</span>
+              <span class="text-sm"><span class="font-semibold text-primary">{{ poolPlayerCounts.goalies }}</span> goalies</span>
+              <span class="text-sm"><span class="font-semibold text-primary">{{ poolPlayerCounts.refs }}</span> refs</span>
+            </div>
+          </div>
+
           <!-- Max managers (shown after level selected, capped by pool) -->
           <div v-if="createForm.level_id" class="form-control">
             <label class="label py-1">
@@ -350,10 +362,11 @@ const hbLeaguesLoading = ref(false)
 const levels = ref([])
 const levelsLoading = ref(false)
 
-// Pool info (max managers cap)
+// Pool info (max managers cap + player counts)
 const poolMaxManagers = ref(null)
 const poolSeasonName = ref(null)
 const poolLoading = ref(false)
+const poolPlayerCounts = ref({ skaters: 0, goalies: 0, refs: 0 })
 
 const managerOptions = computed(() => {
   const max = poolMaxManagers.value || 12
@@ -447,6 +460,7 @@ async function loadLevels(leagueId) {
 
 async function loadPoolInfo(levelId, hbLeagueId) {
   poolMaxManagers.value = null; poolSeasonName.value = null
+  poolPlayerCounts.value = { skaters: 0, goalies: 0, refs: 0 }
   createForm.value.max_managers = null
   if (!levelId) return
   poolLoading.value = true
@@ -456,6 +470,11 @@ async function loadPoolInfo(levelId, hbLeagueId) {
     })
     poolMaxManagers.value = data.max_managers || 12
     poolSeasonName.value = data.resolved_season_name || null
+    poolPlayerCounts.value = {
+      skaters: data.skater_count || 0,
+      goalies: data.goalie_count || 0,
+      refs: data.ref_count || 0,
+    }
     createForm.value.max_managers = poolMaxManagers.value
     // Auto-fill draft dates based on last game in the season
     if (data.last_game_date) {
@@ -481,7 +500,7 @@ async function openCreateModal() {
   createModalKey.value++
   showCreateModal.value = true
   createError.value = ''
-  poolMaxManagers.value = null; poolSeasonName.value = null
+  poolMaxManagers.value = null; poolSeasonName.value = null; poolPlayerCounts.value = { skaters: 0, goalies: 0, refs: 0 }
   createForm.value = {
     hb_league_id: null,
     level_id: null,
@@ -502,7 +521,7 @@ async function openCreateModal() {
 function onLeagueChange() {
   createForm.value.level_id = null
   createForm.value.max_managers = null
-  poolMaxManagers.value = null; poolSeasonName.value = null
+  poolMaxManagers.value = null; poolSeasonName.value = null; poolPlayerCounts.value = { skaters: 0, goalies: 0, refs: 0 }
   loadLevels(createForm.value.hb_league_id)
 }
 
