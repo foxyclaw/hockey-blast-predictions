@@ -193,16 +193,28 @@
             </div>
           </div>
 
-          <!-- Max managers (shown after level selected, capped by pool) -->
+          <!-- Max managers (shown after level selected, up to total skater count) -->
           <div v-if="createForm.level_id" class="form-control">
             <label class="label py-1">
               <span class="label-text text-sm">Max Managers</span>
               <span v-if="poolLoading" class="label-text-alt text-xs text-base-content/40">calculating…</span>
-              <span v-else-if="poolMaxManagers" class="label-text-alt text-xs text-base-content/40">up to {{ poolMaxManagers }} based on player pool</span>
+              <span v-else class="label-text-alt text-xs text-base-content/40">up to {{ poolPlayerCounts.skaters }} (total skaters)</span>
             </label>
             <select v-model.number="createForm.max_managers" class="select select-bordered select-sm" :disabled="poolLoading">
               <option v-for="n in managerOptions" :key="n" :value="n">{{ n }}</option>
             </select>
+          </div>
+
+          <!-- Roster composition preview (shown after max managers selected) -->
+          <div v-if="createForm.level_id && createForm.max_managers && !poolLoading" class="form-control">
+            <label class="label py-1">
+              <span class="label-text text-sm text-base-content/50">Roster per manager</span>
+            </label>
+            <div class="flex flex-wrap items-center gap-3 px-1">
+              <span class="text-sm"><span class="font-semibold text-primary">{{ rosterComposition.skaters }}</span> skaters</span>
+              <span class="text-sm"><span class="font-semibold" :class="rosterComposition.goalies > 0 ? 'text-primary' : 'text-base-content/30'">{{ rosterComposition.goalies }}</span> goalies</span>
+              <span class="text-sm"><span class="font-semibold" :class="rosterComposition.refs > 0 ? 'text-primary' : 'text-base-content/30'">{{ rosterComposition.refs }}</span> refs</span>
+            </div>
           </div>
 
           <!-- Team name -->
@@ -368,8 +380,18 @@ const poolSeasonName = ref(null)
 const poolLoading = ref(false)
 const poolPlayerCounts = ref({ skaters: 0, goalies: 0, refs: 0 })
 
+// Roster composition based on selected manager count
+const rosterComposition = computed(() => {
+  const n = createForm.value.max_managers || 1
+  const skaters = Math.floor((poolPlayerCounts.value.skaters || 0) / n)
+  const goalies = (poolPlayerCounts.value.goalies || 0) >= n ? 1 : 0
+  const refs = (poolPlayerCounts.value.refs || 0) >= n ? 1 : 0
+  return { skaters, goalies, refs }
+})
+
 const managerOptions = computed(() => {
-  const max = poolMaxManagers.value || 12
+  // Max managers = total skater count (each manager needs at least 1 skater)
+  const max = Math.max(2, poolPlayerCounts.value.skaters || 12)
   const opts = []
   for (let i = 2; i <= max; i++) opts.push(i)
   return opts

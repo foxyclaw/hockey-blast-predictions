@@ -303,21 +303,32 @@ def create_league():
     draft_season_id = pool_info.get("resolved_season_id")
     hb_season_id = None  # will be auto-assigned by scoring service when play season begins
 
-    roster_skaters = pool_info["roster_skaters"]
-    max_managers = pool_info["max_managers"]
-
-    if max_managers < 2:
-        return error_response("VALIDATION_ERROR", "Not enough players at this level to form a league", 400)
-
-    # Allow user to set a lower cap (but never exceed the pool-calculated max)
+    # New logic: user picks max_managers up to total skater count
+    # Roster composition is calculated based on available players
+    total_skaters = len(pool_info.get("skaters", []))
+    total_goalies = len(pool_info.get("goalies", []))
+    total_refs = len(pool_info.get("refs", []))
+    
+    # Default max_managers is min(12, total_skaters) - at least 1 skater per manager
+    max_managers = min(12, total_skaters) if total_skaters >= 2 else 2
+    
+    # Allow user to set any value from 2 up to total skater count
     override = data.get("max_managers_override")
     if override is not None:
         try:
             override = int(override)
-            if 2 <= override <= max_managers:
+            if 2 <= override <= total_skaters:
                 max_managers = override
         except (ValueError, TypeError):
             pass
+    
+    if max_managers < 2:
+        return error_response("VALIDATION_ERROR", "Not enough players at this level to form a league", 400)
+    
+    # Calculate roster composition based on selected manager count
+    roster_skaters = total_skaters // max_managers
+    roster_goalies = 1 if total_goalies >= max_managers else 0
+    roster_refs = 1 if total_refs >= max_managers else 0
 
     # draft_closes_at is mandatory — the entire deadline system depends on it
     if not data.get("draft_closes_at"):
@@ -362,8 +373,8 @@ def create_league():
             status="forming",
             max_managers=max_managers,
             roster_skaters=roster_skaters,
-            roster_goalies=1,
-            roster_refs=1,
+            roster_goalies=roster_goalies,
+            roster_refs=roster_refs,
             draft_pick_hours=data.get("draft_pick_hours", 24),
             created_by=user.id,
             is_private=is_private,
