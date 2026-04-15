@@ -982,36 +982,38 @@ def chat_questions():
 @admin_bp.route("/chat/feedback", methods=["GET"])
 @require_admin
 def chat_feedback():
-    """GET /api/admin/chat/feedback — all chat feedback entries."""
-    from app.models.chat_feedback import ChatFeedback
-    from app.models.chat_message import ChatMessage
-
+    """GET /api/admin/chat/feedback — all chat feedback entries.
+    
+    Reads from blast_chat_feedback (frontend stats site feedback table).
+    This is separate from chat_feedback (sportsbook app table).
+    """
     pred_session = PredSession()
 
-    feedbacks = pred_session.execute(
-        select(ChatFeedback)
-        .order_by(ChatFeedback.created_at.desc())
-    ).scalars().all()
+    # Read from blast_chat_feedback table (created by frontend ai_search.py)
+    rows = pred_session.execute(
+        sa.text("""
+            SELECT id, message_id, user_id, rating, comment, query, source, created_at
+            FROM blast_chat_feedback
+            ORDER BY created_at DESC
+        """)
+    ).all()
 
     result = []
     user_cache = {}
-    message_cache = {}
-    for f in feedbacks:
-        if f.user_id not in user_cache:
-            u = pred_session.get(PredUser, f.user_id)
-            user_cache[f.user_id] = u.display_name if u else f"user#{f.user_id}"
-        if f.message_id not in message_cache:
-            m = pred_session.get(ChatMessage, f.message_id)
-            message_cache[f.message_id] = m.query if m else None
+    for row in rows:
+        if row.user_id not in user_cache:
+            u = pred_session.get(PredUser, row.user_id)
+            user_cache[row.user_id] = u.display_name if u else f"user#{row.user_id}"
         result.append({
-            "id": f.id,
-            "message_id": f.message_id,
-            "user_id": f.user_id,
-            "user_display_name": user_cache[f.user_id],
-            "rating": f.rating,
-            "comment": f.comment,
-            "query": message_cache[f.message_id],
-            "created_at": f.created_at.isoformat() if f.created_at else None,
+            "id": row.id,
+            "message_id": row.message_id,
+            "user_id": row.user_id,
+            "user_display_name": user_cache[row.user_id],
+            "rating": row.rating,
+            "comment": row.comment,
+            "query": row.query,
+            "source": row.source,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
         })
 
     return jsonify({"feedback": result, "count": len(result)})
