@@ -193,27 +193,64 @@
             </div>
           </div>
 
-          <!-- Max managers (shown after level selected, up to total skater count) -->
-          <div v-if="createForm.level_id" class="form-control">
+          <!-- Roster size per manager (shown after level selected) -->
+          <div v-if="createForm.level_id && !poolLoading" class="form-control">
+            <label class="label py-1">
+              <span class="label-text text-sm">Roster size per manager</span>
+            </label>
+            <div class="grid grid-cols-3 gap-2">
+              <div class="form-control">
+                <label class="label py-0.5 justify-center">
+                  <span class="label-text text-xs text-base-content/50">Skaters</span>
+                </label>
+                <select v-model.number="createForm.roster_skaters" class="select select-bordered select-sm">
+                  <option v-for="n in [1,2,3,4,5]" :key="n" :value="n">{{ n }}</option>
+                </select>
+              </div>
+              <div class="form-control">
+                <label class="label py-0.5 justify-center">
+                  <span class="label-text text-xs text-base-content/50">Goalies</span>
+                </label>
+                <select v-model.number="createForm.roster_goalies" class="select select-bordered select-sm">
+                  <option v-for="n in [1,2,3,4,5]" :key="n" :value="n">{{ n }}</option>
+                </select>
+              </div>
+              <div class="form-control">
+                <label class="label py-0.5 justify-center">
+                  <span class="label-text text-xs text-base-content/50">Refs</span>
+                </label>
+                <select v-model.number="createForm.roster_refs" class="select select-bordered select-sm">
+                  <option v-for="n in [1,2,3,4,5]" :key="n" :value="n">{{ n }}</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Max managers (shown after roster sizes selected) -->
+          <div v-if="createForm.level_id && !poolLoading" class="form-control">
             <label class="label py-1">
               <span class="label-text text-sm">Max Managers</span>
-              <span v-if="poolLoading" class="label-text-alt text-xs text-base-content/40">calculating…</span>
-              <span v-else class="label-text-alt text-xs text-base-content/40">up to {{ poolPlayerCounts.skaters }} (total skaters)</span>
+              <span class="label-text-alt text-xs" :class="managerOptions.length > 0 ? 'text-base-content/40' : 'text-error'">
+                {{ managerOptions.length > 0 ? `up to ${managerOptions[managerOptions.length-1]}` : 'insufficient players' }}
+              </span>
             </label>
-            <select v-model.number="createForm.max_managers" class="select select-bordered select-sm" :disabled="poolLoading">
+            <select v-model.number="createForm.max_managers" class="select select-bordered select-sm" :disabled="poolLoading || managerOptions.length === 0">
               <option v-for="n in managerOptions" :key="n" :value="n">{{ n }}</option>
             </select>
           </div>
 
-          <!-- Roster composition preview (shown after max managers selected) -->
+          <!-- Roster feasibility check (shown after max managers selected) -->
           <div v-if="createForm.level_id && createForm.max_managers && !poolLoading" class="form-control">
             <label class="label py-1">
-              <span class="label-text text-sm text-base-content/50">Roster per manager</span>
+              <span class="label-text text-sm text-base-content/50">Roster allocation</span>
+              <span class="label-text-alt text-xs" :class="rosterFeasibility.skaters.ok && rosterFeasibility.goalies.ok && rosterFeasibility.refs.ok ? 'text-success' : 'text-error'">
+                {{ rosterFeasibility.skaters.ok && rosterFeasibility.goalies.ok && rosterFeasibility.refs.ok ? '✓ feasible' : '✗ check numbers' }}
+              </span>
             </label>
-            <div class="flex flex-wrap items-center gap-3 px-1">
-              <span class="text-sm"><span class="font-semibold text-primary">{{ rosterComposition.skaters }}</span> skaters</span>
-              <span class="text-sm"><span class="font-semibold" :class="rosterComposition.goalies > 0 ? 'text-primary' : 'text-base-content/30'">{{ rosterComposition.goalies }}</span> goalies</span>
-              <span class="text-sm"><span class="font-semibold" :class="rosterComposition.refs > 0 ? 'text-primary' : 'text-base-content/30'">{{ rosterComposition.refs }}</span> refs</span>
+            <div class="flex flex-wrap items-center gap-3 px-1 text-sm">
+              <span>Skaters: <span class="font-semibold" :class="rosterFeasibility.skaters.ok ? 'text-primary' : 'text-error'">{{ rosterFeasibility.skaters.needed }}</span> / {{ rosterFeasibility.skaters.available }}</span>
+              <span>Goalies: <span class="font-semibold" :class="rosterFeasibility.goalies.ok ? 'text-primary' : 'text-error'">{{ rosterFeasibility.goalies.needed }}</span> / {{ rosterFeasibility.goalies.available }}</span>
+              <span>Refs: <span class="font-semibold" :class="rosterFeasibility.refs.ok ? 'text-primary' : 'text-error'">{{ rosterFeasibility.refs.needed }}</span> / {{ rosterFeasibility.refs.available }}</span>
             </div>
           </div>
 
@@ -322,6 +359,9 @@ const createForm = ref({
   draft_opens_at: '2026-03-28T16:00',
   draft_closes_at: '2026-03-30T23:00',
   max_managers: null,
+  roster_skaters: 2,
+  roster_goalies: 2,
+  roster_refs: 2,
 })
 const createdJoinCode = ref('')
 const showJoinCodeModal = ref(false)
@@ -366,6 +406,12 @@ watch(() => createForm.value.draft_opens_at, (val, oldVal) => {
   }
 })
 const _autoFillingDates = ref(false)
+
+// Watch roster sizes and reset max_managers if it exceeds new maximum
+watch([() => createForm.value.roster_skaters, () => createForm.value.roster_goalies, () => createForm.value.roster_refs], () => {
+  // Reset max_managers to null so user has to reselect
+  createForm.value.max_managers = null
+}, { flush: 'post' })
 const joinCodeError = ref('')
 
 // League + level selectors
@@ -380,21 +426,43 @@ const poolSeasonName = ref(null)
 const poolLoading = ref(false)
 const poolPlayerCounts = ref({ skaters: 0, goalies: 0, refs: 0 })
 
-// Roster composition based on selected manager count
-const rosterComposition = computed(() => {
-  const n = createForm.value.max_managers || 1
-  const skaters = Math.floor((poolPlayerCounts.value.skaters || 0) / n)
-  const goalies = (poolPlayerCounts.value.goalies || 0) >= n ? 1 : 0
-  const refs = (poolPlayerCounts.value.refs || 0) >= n ? 1 : 0
-  return { skaters, goalies, refs }
-})
-
+// Max managers based on roster selections - can't exceed available players
 const managerOptions = computed(() => {
-  // Max managers = total skater count (each manager needs at least 1 skater)
-  const max = Math.max(2, poolPlayerCounts.value.skaters || 12)
+  const skatersPerManager = createForm.value.roster_skaters || 2
+  const goaliesPerManager = createForm.value.roster_goalies || 2
+  const refsPerManager = createForm.value.roster_refs || 2
+  
+  const availableSkaters = poolPlayerCounts.value.skaters || 0
+  const availableGoalies = poolPlayerCounts.value.goalies || 0
+  const availableRefs = poolPlayerCounts.value.refs || 0
+  
+  // Max managers is limited by each position's availability
+  const maxBySkaters = Math.floor(availableSkaters / skatersPerManager)
+  const maxByGoalies = goaliesPerManager > 0 ? Math.floor(availableGoalies / goaliesPerManager) : 999
+  const maxByRefs = refsPerManager > 0 ? Math.floor(availableRefs / refsPerManager) : 999
+  
+  const max = Math.max(2, Math.min(maxBySkaters, maxByGoalies, maxByRefs))
   const opts = []
   for (let i = 2; i <= max; i++) opts.push(i)
   return opts
+})
+
+// Feasibility check - shows if current selections are possible
+const rosterFeasibility = computed(() => {
+  const n = createForm.value.max_managers || 1
+  const skatersNeeded = n * (createForm.value.roster_skaters || 2)
+  const goaliesNeeded = n * (createForm.value.roster_goalies || 2)
+  const refsNeeded = n * (createForm.value.roster_refs || 2)
+  
+  const availableSkaters = poolPlayerCounts.value.skaters || 0
+  const availableGoalies = poolPlayerCounts.value.goalies || 0
+  const availableRefs = poolPlayerCounts.value.refs || 0
+  
+  return {
+    skaters: { needed: skatersNeeded, available: availableSkaters, ok: availableSkaters >= skatersNeeded },
+    goalies: { needed: goaliesNeeded, available: availableGoalies, ok: availableGoalies >= goaliesNeeded },
+    refs: { needed: refsNeeded, available: availableRefs, ok: availableRefs >= refsNeeded },
+  }
 })
 
 // Private join modal
@@ -533,6 +601,9 @@ async function openCreateModal() {
     draft_opens_at: '',
     draft_closes_at: '',
     max_managers: null,
+    roster_skaters: 2,
+    roster_goalies: 2,
+    roster_refs: 2,
   }
   levels.value = []
   if (!hbLeagues.value.length) {
@@ -568,6 +639,9 @@ async function createLeague() {
       season_label: seasonLabel,
       is_private: createForm.value.is_private,
       max_managers_override: createForm.value.max_managers,
+      roster_skaters: createForm.value.roster_skaters,
+      roster_goalies: createForm.value.roster_goalies,
+      roster_refs: createForm.value.roster_refs,
       season_starts_at: createForm.value.season_starts_at ? new Date(createForm.value.season_starts_at).toISOString() : undefined,
       draft_opens_at: createForm.value.draft_opens_at ? new Date(createForm.value.draft_opens_at).toISOString() : undefined,
       draft_closes_at: new Date(createForm.value.draft_closes_at).toISOString(),
@@ -583,6 +657,7 @@ async function createLeague() {
     createForm.value = {
       hb_league_id: null, level_id: null, team_name: '', is_private: true,
       season_label: '', season_starts_at: '2026-04-01T00:00', draft_opens_at: '2026-03-28T16:00', draft_closes_at: '2026-03-30T23:00', max_managers: null,
+      roster_skaters: 2, roster_goalies: 2, roster_refs: 2,
     }
   } catch (e) {
     createError.value = e?.response?.data?.message || 'Failed to create league'
