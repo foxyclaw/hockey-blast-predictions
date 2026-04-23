@@ -4,7 +4,7 @@ fantasy_scoring_service — computes and persists fantasy points for a completed
 Scoring rules:
   Goal        = 3 pts
   Assist      = 2 pts
-  Game played = 1 pt
+  Game played = 1 pt (skaters) / 3 pts (goalies)
   Penalty (per minor) = -0.5 pts
   Goalie win  = 5 pts
   Goalie shutout bonus = +3 pts
@@ -25,22 +25,24 @@ logger = logging.getLogger(__name__)
 
 GOAL_PTS = 3.0
 # Ref scoring
-REF_GAME_PTS = 1.0
-REF_PENALTY_PTS = 1.5
+REF_GAME_PTS = 4.0
+REF_PENALTY_PTS = 2.0
 REF_GM_PTS = 8.0
 ASSIST_PTS = 2.0
 GAME_PLAYED_PTS = 1.0
+GOALIE_GAME_PLAYED_PTS = 3.0
 PENALTY_PTS = -0.5
 GOALIE_WIN_PTS = 5.0
 SHUTOUT_BONUS = 3.0
 
 
 def _compute_points(goals, assists, penalties, games_played, is_goalie_win, is_shutout,
-                    ref_games=0, ref_penalties=0, ref_gm=0) -> float:
+                    ref_games=0, ref_penalties=0, ref_gm=0, is_goalie=False) -> float:
     pts = 0.0
     pts += goals * GOAL_PTS
     pts += assists * ASSIST_PTS
-    pts += games_played * GAME_PLAYED_PTS
+    per_game_pts = GOALIE_GAME_PLAYED_PTS if is_goalie else GAME_PLAYED_PTS
+    pts += games_played * per_game_pts
     pts += penalties * PENALTY_PTS
     if is_goalie_win:
         pts += GOALIE_WIN_PTS
@@ -240,6 +242,7 @@ def score_game(league_id: int, game_id: int) -> None:
             games_played=1,
             is_goalie_win=is_goalie_win,
             is_shutout=is_shutout,
+            is_goalie=roster_entry.is_goalie,
         )
 
         stmt = pg_insert(FantasyGameScores).values(
