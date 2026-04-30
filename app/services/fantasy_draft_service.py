@@ -114,6 +114,29 @@ def build_draft_queue(league_id: int) -> None:
         raise ValueError("No managers in league")
 
     n = len(managers)
+
+    # Auto-adjust roster sizes from the actual pool / actual manager count
+    # (e.g. 6 managers → 10-1-1; 10 managers → 6-0-0).
+    if league.auto_adjust_rosters:
+        from app.services.fantasy_pool_service import get_player_pool
+        try:
+            pool_info = get_player_pool(
+                league.level_id,
+                org_id=league.org_id,
+                league_id=league.hb_league_id,
+                season_id=league.draft_season_id or league.hb_season_id,
+                min_games=league.min_games_played or 1,
+            )
+            total_skaters = len(pool_info.get("skaters", []))
+            total_goalies = len(pool_info.get("goalies", []))
+            total_refs = len(pool_info.get("refs", []))
+            league.roster_skaters = max(1, min(10, total_skaters // n))
+            league.roster_goalies = max(0, min(5, total_goalies // n))
+            league.roster_refs = max(0, min(5, total_refs // n))
+            pred.commit()
+        except Exception as e:
+            logger.warning("[draft] auto-roster sizing failed for league=%d: %s", league_id, e)
+
     total_rounds = league.roster_skaters + league.roster_goalies + league.roster_refs
     total_picks = n * total_rounds
 

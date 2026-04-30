@@ -315,36 +315,58 @@ def create_league():
     total_goalies = len(pool_info.get("goalies", []))
     total_refs = len(pool_info.get("refs", []))
 
-    # Get roster sizes from user (skaters 1-10, goalies/refs 1-5; defaults 2/1/1)
-    roster_skaters = data.get("roster_skaters", 2)
-    roster_goalies = data.get("roster_goalies", 1)
-    roster_refs = data.get("roster_refs", 1)
+    auto_adjust_rosters = bool(data.get("auto_adjust_rosters", False))
 
-    # Validate roster sizes (skaters 1-10, goalies/refs 0-5)
-    try:
-        roster_skaters = max(1, min(10, int(roster_skaters)))
-        roster_goalies = max(0, min(5, int(roster_goalies)))
-        roster_refs = max(0, min(5, int(roster_refs)))
-    except (ValueError, TypeError):
-        roster_skaters, roster_goalies, roster_refs = 2, 1, 1
-    
-    # Default max_managers is min(12, available players per position)
-    max_by_skaters = total_skaters // roster_skaters if roster_skaters > 0 else 0
-    max_by_goalies = total_goalies // roster_goalies if roster_goalies > 0 else 999
-    max_by_refs = total_refs // roster_refs if roster_refs > 0 else 999
-    max_managers = min(12, max_by_skaters, max_by_goalies, max_by_refs)
-    max_managers = max(2, max_managers) if max_managers >= 2 else 2
-    
-    # Allow user to override max_managers (must not exceed calculated max)
-    override = data.get("max_managers_override")
-    if override is not None:
+    if auto_adjust_rosters:
+        # Roster sizes are recomputed when the draft opens based on actual managers joined.
+        # Cap max_managers so each manager is guaranteed at least 2 skaters.
+        max_managers = min(12, total_skaters // 2)
+        max_managers = max(2, max_managers) if max_managers >= 2 else 2
+
+        override = data.get("max_managers_override")
+        if override is not None:
+            try:
+                override = int(override)
+                if 2 <= override <= max_managers:
+                    max_managers = override
+            except (ValueError, TypeError):
+                pass
+
+        # Placeholder roster sizes assuming the league fills up — recomputed at draft open.
+        roster_skaters = max(1, min(10, total_skaters // max_managers))
+        roster_goalies = max(0, min(5, total_goalies // max_managers))
+        roster_refs = max(0, min(5, total_refs // max_managers))
+    else:
+        # Get roster sizes from user (skaters 1-10, goalies/refs 1-5; defaults 2/1/1)
+        roster_skaters = data.get("roster_skaters", 2)
+        roster_goalies = data.get("roster_goalies", 1)
+        roster_refs = data.get("roster_refs", 1)
+
+        # Validate roster sizes (skaters 1-10, goalies/refs 0-5)
         try:
-            override = int(override)
-            if 2 <= override <= max_managers:
-                max_managers = override
+            roster_skaters = max(1, min(10, int(roster_skaters)))
+            roster_goalies = max(0, min(5, int(roster_goalies)))
+            roster_refs = max(0, min(5, int(roster_refs)))
         except (ValueError, TypeError):
-            pass
-    
+            roster_skaters, roster_goalies, roster_refs = 2, 1, 1
+
+        # Default max_managers is min(12, available players per position)
+        max_by_skaters = total_skaters // roster_skaters if roster_skaters > 0 else 0
+        max_by_goalies = total_goalies // roster_goalies if roster_goalies > 0 else 999
+        max_by_refs = total_refs // roster_refs if roster_refs > 0 else 999
+        max_managers = min(12, max_by_skaters, max_by_goalies, max_by_refs)
+        max_managers = max(2, max_managers) if max_managers >= 2 else 2
+
+        # Allow user to override max_managers (must not exceed calculated max)
+        override = data.get("max_managers_override")
+        if override is not None:
+            try:
+                override = int(override)
+                if 2 <= override <= max_managers:
+                    max_managers = override
+            except (ValueError, TypeError):
+                pass
+
     if max_managers < 2:
         return error_response("VALIDATION_ERROR", "Not enough players at this level to form a league", 400)
 
@@ -393,6 +415,7 @@ def create_league():
             roster_skaters=roster_skaters,
             roster_goalies=roster_goalies,
             roster_refs=roster_refs,
+            auto_adjust_rosters=auto_adjust_rosters,
             min_games_played=min_games_played,
             draft_pick_hours=data.get("draft_pick_hours", 24),
             created_by=user.id,

@@ -30,6 +30,9 @@ class FantasyLeague(PredBase):
     roster_skaters: Mapped[int] = mapped_column(Integer, nullable=False)
     roster_goalies: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     roster_refs: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    auto_adjust_rosters: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     min_games_played: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     draft_pick_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
     settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -77,6 +80,7 @@ class FantasyLeague(PredBase):
             "roster_skaters": self.roster_skaters,
             "roster_goalies": self.roster_goalies,
             "roster_refs": self.roster_refs,
+            "auto_adjust_rosters": self.auto_adjust_rosters,
             "min_games_played": self.min_games_played,
             "draft_pick_hours": self.draft_pick_hours,
             "settings": self.settings,
