@@ -18,9 +18,12 @@ existing fantasy_game_scores rows in this league are reassigned to the new owner
 so the new owner gets the player's entire season production and standings
 recompute on the fly.
 
-"Available" players = current-season-eligible (league.hb_season_id) players who
-are NOT currently on any roster in this league. This naturally includes both
-players who newly appeared this season and players released earlier in the round.
+"Available" players = the UNION of draft-season-eligible (league.draft_season_id)
+and current-season-eligible (league.hb_season_id) players who are NOT currently
+on any roster in this league. The union ensures released players (who may have
+quit this season and so are absent from the current-season pool) return to the
+pool for others to pick, while still surfacing players who newly appeared this
+season and players released earlier in the round.
 """
 
 import logging
@@ -534,9 +537,20 @@ def _player_type(is_goalie: bool, is_ref: bool) -> str:
 
 def get_available_players(league_id: int, of_type: str | None = None) -> list[dict]:
     """
-    Players eligible to be acquired: current-season pool (league.hb_season_id)
+    Players eligible to be acquired: the UNION of the draft-season pool
+    (league.draft_season_id) and the current-season pool (league.hb_season_id),
     minus everyone currently rostered in this league. Optionally filter to a
     single type ('skater' | 'goalie' | 'ref').
+
+    Why the union: a player who was draft-eligible last season but quit this
+    season (0/few games in hb_season_id) is absent from the current-season pool.
+    If we built the trade pool from the current season alone, releasing such a
+    player would make them vanish — nobody could re-acquire them, and the pool
+    would shrink toward empty as trades accumulate. Including the draft-season
+    pool brings released players back, while the current-season pool keeps
+    players who newly appeared this season available. When a player is in both
+    pools we prefer the current-season entry (this season's stats are the
+    relevant ones for scoring).
     """
     from app.services.fantasy_pool_service import get_player_pool
     pred = PredSession()
@@ -544,30 +558,37 @@ def get_available_players(league_id: int, of_type: str | None = None) -> list[di
     if league is None:
         return []
 
-    pool = get_player_pool(
-        league.level_id,
-        org_id=league.org_id,
-        league_id=league.hb_league_id,
-        # CURRENT season (play season), NOT draft_season_id — this is the key
-        # difference from the draft pool: new this-season players become available.
-        season_id=league.hb_season_id,
-        min_games=league.min_games_played or 1,
-    )
+    def _pool_for(season_id):
+        if season_id is None:
+            return None
+        return get_player_pool(
+            league.level_id,
+            org_id=league.org_id,
+            league_id=league.hb_league_id,
+            season_id=season_id,
+            min_games=league.min_games_played or 1,
+        )
+
+    current_pool = _pool_for(league.hb_season_id)
+    draft_pool = _pool_for(league.draft_season_id)
+
+    key = {"goalie": "goalies", "ref": "refs", "skater": "skaters"}.get(of_type, "players")
+
+    # Merge by hb_human_id, preferring the current-season entry when a player
+    # appears in both pools (draft entries only fill gaps for players absent
+    # from the current season, e.g. released players who quit this season).
+    merged: dict[int, dict] = {}
+    for pool in (draft_pool, current_pool):
+        if pool is None:
+            continue
+        for p in pool.get(key, []):
+            merged[p["hb_human_id"]] = p
 
     rostered = set(pred.execute(
         select(FantasyRoster.hb_human_id).where(FantasyRoster.league_id == league_id)
     ).scalars().all())
 
-    if of_type == "goalie":
-        candidates = pool["goalies"]
-    elif of_type == "ref":
-        candidates = pool.get("refs", [])
-    elif of_type == "skater":
-        candidates = pool["skaters"]
-    else:
-        candidates = pool["players"]
-
-    return [p for p in candidates if p["hb_human_id"] not in rostered]
+    return [p for hid, p in merged.items() if hid not in rostered]
 
 
 def _reassign_player_scores(league_id: int, hb_human_id: int, new_user_id: int, pred) -> None:
